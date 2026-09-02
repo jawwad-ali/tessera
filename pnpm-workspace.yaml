@@ -1,0 +1,24 @@
+packages:
+  - 'packages/*'
+  - 'apps/*'
+
+# pnpm 10 blocks lifecycle scripts by default. Only these need to run one.
+onlyBuiltDependencies:
+  - esbuild
+  - '@playwright/test'
+
+# ARCHITECTURE.md §3: exactly one resolved copy of yjs in the tree. Two copies —
+# including the same version resolved once as ESM and once as CJS — make
+# `Ya.Doc !== Yb.Doc`, so setting a nested Y.Map from one copy into a Doc from the
+# other throws `Unexpected content type`. Binary updates still cross fine, so the
+# bug stays hidden until the first nested type. Measured; see invariant 2.
+overrides:
+  yjs: 13.6.32
+
+# TypeScript is pinned with a TILDE, not a caret, and that is deliberate.
+# typescript-eslint 8.69.0 declares `typescript: >=4.8.4 <6.1.0`. TypeScript 7 is the
+# native (Go) port and no typescript-eslint release supports it yet, so bumping to 7 does
+# not fail loudly — it silently costs us type-aware linting, which is where every rule
+# that catches a real bug lives: no-floating-promises, switch-exhaustiveness-check over
+# the Command union, no-unnecessary-condition. 6.0.x is the newest compiler the lint
+# toolchain supports. Revisit when typescript-eslint ships TS 7 support.

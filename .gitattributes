@@ -1,0 +1,9 @@
+# Normalise to LF in the repository, check out native. Without this, a Windows checkout
+# rewrites every file's endings and the first cross-platform diff is unreadable.
+* text=auto eol=lf
+
+# Binary and generated files git should not try to diff or normalise.
+*.png binary
+*.jpg binary
+*.woff2 binary
+pnpm-lock.yaml -diff linguist-generated=true

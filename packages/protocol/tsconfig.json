@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "comment": "No DOM lib and no node types, deliberately. ARCHITECTURE.md \u00a73 \u2014 core must load in a browser main thread, an OffscreenCanvas worker, and a bare node test. If a change here needs `lib` widening, the boundary is being crossed.",
+  "compilerOptions": {
+    "types": []
+  },
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "src/**/*.test.ts"
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "name": "@tessera/harness",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Property/convergence suite, load client, measurement. Dev only — nothing depends on this.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "bench": "tsx src/measure.ts"
+  },
+  "dependencies": {
+    "@tessera/core": "workspace:*",
+    "@tessera/crdt": "workspace:*",
+    "@tessera/protocol": "workspace:*",
+    "fast-check": "^4.9.0",
+    "ws": "^8.21.3"
+  },
+  "peerDependencies": {
+    "yjs": "13.6.32"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.23.13",
+    "yjs": "13.6.32"
+  }
+}

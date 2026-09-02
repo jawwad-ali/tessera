@@ -1,0 +1,52 @@
+name: ci
+
+on:
+  push: { branches: [main] }
+  pull_request:
+
+# A second push should cancel the first run; CI here is a gate, not a log.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # Invariant 2 first: everything downstream is meaningless if the tree has two yjs.
+      - name: architecture — single yjs copy
+        run: node scripts/check-single-yjs.ts
+
+      # Invariant 1 and the layering rules. Cheap, and the most likely thing a PR breaks.
+      - name: architecture — dependency graph
+        run: pnpm arch
+
+      - name: typecheck
+        run: pnpm typecheck
+
+      # Invariant 1's other half. The root typecheck has DOM and node libs, so it cannot
+      # see a platform global leaking into core or protocol. These two projects declare
+      # `types: []` and no DOM lib, so this step is what actually enforces that they stay
+      # loadable in a browser, an OffscreenCanvas worker and a bare node test.
+      - name: architecture - core and protocol stay environment-free
+        run: pnpm typecheck:pure
+
+      - name: lint
+        run: pnpm lint
+
+      - name: unit
+        run: pnpm vitest run --project core --project protocol --project crdt --project relay
+
+      # The suite that tests the claim the project actually makes. Kept as its own step so a
+      # convergence failure is legible in the run summary rather than buried in a matrix.
+      - name: convergence — randomised delivery, duplicates, partition-heal
+        run: pnpm vitest run --project harness

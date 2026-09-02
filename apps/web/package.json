@@ -1,0 +1,32 @@
+{
+  "name": "@tessera/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Next.js host. Chrome in React, board on canvas.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "e2e": "playwright test"
+  },
+  "dependencies": {
+    "@tessera/core": "workspace:*",
+    "@tessera/crdt": "workspace:*",
+    "@tessera/protocol": "workspace:*",
+    "nanoid": "^6.0.1",
+    "next": "^16.3.4",
+    "perfect-freehand": "^1.2.3",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "yjs": "13.6.32",
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/react": "^19.2.18",
+    "jsdom": "^30.0.1",
+    "tailwindcss": "^4.3.3"
+  }
+}

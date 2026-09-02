@@ -1,0 +1,25 @@
+{
+  "name": "@tessera/crdt",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The Yjs binding. The only package that touches a Y type.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@tessera/core": "workspace:*",
+    "@tessera/protocol": "workspace:*",
+    "lib0": "^0.2.117",
+    "y-indexeddb": "^9.0.12",
+    "y-protocols": "^1.0.7",
+    "y-websocket": "^3.1.0"
+  },
+  "peerDependencies": {
+    "yjs": "13.6.32"
+  },
+  "devDependencies": {
+    "yjs": "13.6.32"
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable",
+      "WebWorker"
+    ],
+    "types": [
+      "node"
+    ],
+    "jsx": "preserve",
+    "paths": {
+      "@tessera/core": [
+        "./packages/core/src/index.ts"
+      ],
+      "@tessera/core/*": [
+        "./packages/core/src/*"
+      ],
+      "@tessera/crdt": [
+        "./packages/crdt/src/index.ts"
+      ],
+      "@tessera/crdt/*": [
+        "./packages/crdt/src/*"
+      ],
+      "@tessera/protocol": [
+        "./packages/protocol/src/index.ts"
+      ],
+      "@tessera/protocol/*": [
+        "./packages/protocol/src/*"
+      ],
+      "@tessera/harness": [
+        "./packages/harness/src/index.ts"
+      ]
+    }
+  },
+  "include": [
+    "packages/*/src/**/*",
+    "apps/*/src/**/*",
+    "apps/web/app/**/*",
+    "*.ts",
+    "*.config.ts",
+    "apps/*/*.config.ts",
+    "scripts/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "**/dist",
+    "**/.next"
+  ]
+}

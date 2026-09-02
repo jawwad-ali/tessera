@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+
+    // Workspace packages are consumed as TypeScript source — Next transpiles them,
+    // tsup bundles them for the relay — so nothing here emits and there is no dist
+    // to go stale. `tsc --noEmit` at the root is the single typecheck.
+    "module": "Preserve",
+    "moduleResolution": "Bundler",
+    "moduleDetection": "force",
+    "noEmit": true,
+    "isolatedModules": true,
+
+    // Relative imports carry an explicit `.ts` extension. Two reasons: it makes the
+    // "packages are source, not dist" decision visible at every import site rather than
+    // hidden in a resolver config, and it is what Node's native type-stripping requires —
+    // so the harness and the relay can drop tsx whenever we want to, with no rewrite.
+    // Legal only because nothing here emits.
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "allowUnreachableCode": false,
+    "forceConsistentCasingInFileNames": true,
+
+    // No enums, namespaces or parameter properties. Everything in packages/core has
+    // to survive being read as plain data by a worker renderer and by the property
+    // suite, so type-level constructs that emit runtime code are banned outright.
+    "erasableSyntaxOnly": true
+  }
+}

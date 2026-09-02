@@ -1,0 +1,14 @@
+{
+  "name": "@tessera/protocol",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Wire message types, frame reading, permission facets, close codes. Browser and relay both.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "lib0": "^0.2.117"
+  }
+}

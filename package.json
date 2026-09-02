@@ -1,0 +1,38 @@
+{
+  "name": "tessera",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Multiplayer whiteboard with CRDT sync. Hand-written renderer, hand-written relay.",
+  "engines": {
+    "node": ">=22.12.0",
+    "pnpm": ">=10"
+  },
+  "packageManager": "pnpm@10.20.0",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "arch": "depcruise packages apps --config .dependency-cruiser.cjs",
+    "arch:graph": "depcruise packages apps --config .dependency-cruiser.cjs --output-type dot | dot -T svg > bench-out/deps.svg",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:converge": "vitest run --project harness",
+    "verify": "pnpm typecheck && pnpm typecheck:pure && pnpm lint && pnpm arch && pnpm test",
+    "dev": "pnpm --parallel --filter \"@tessera/web\" --filter \"@tessera/relay\" dev",
+    "dev:web": "pnpm --filter @tessera/web dev",
+    "dev:relay": "pnpm --filter @tessera/relay dev",
+    "build": "pnpm --filter @tessera/relay build && pnpm --filter @tessera/web build",
+    "bench": "pnpm --filter @tessera/harness bench",
+    "typecheck:pure": "tsc -p packages/core --noEmit && tsc -p packages/protocol --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^26.4.1",
+    "@vitest/coverage-v8": "^4.1.11",
+    "dependency-cruiser": "^18.2.0",
+    "eslint": "^10.9.1",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.69.0",
+    "vitest": "^4.1.11"
+  }
+}
