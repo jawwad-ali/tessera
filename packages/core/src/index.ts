@@ -146,4 +146,8 @@ export { SpatialHash } from './scene/spatial-hash.ts';
 
 // The assertions the property suite runs.
 export { checkCommand, checkScene } from './invariants.ts';
+
+// The renderer's input.
+export { visibleShapes } from './scene/visible.ts';
+export type { DrawItem, Viewport } from './scene/visible.ts';
 export type { InvariantName, Violation } from './invariants.ts';
