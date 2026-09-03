@@ -67,7 +67,7 @@ Estimates are evening-hours. Cumulative assumes ~10–12h/week.
 |---|---|---|---|---|---|---|---|
 | 0 | Foundations made honest | `done` | 3–5h | ~5h | A public repo whose README describes only what exists, with a genuinely green CI badge | [repo](https://github.com/jawwad-ali/tessera) - [docs/measurements.md](./docs/measurements.md) | no |
 | 1 | Core runtime | `done` 6/6 | 10–14h | ~6h | *(unchanged — invisible phase, justified: nothing can be drawn or synced before the reducer exists)* | [core/src](./packages/core/src) — 173 tests | no |
-| 2 | Property suite, mutation-proved | `not-started` | 8–12h | — | `harness/CAUGHT.md`: three planted bugs, seeds-to-failure, shrink lengths | — | no |
+| 2 | Property suite, mutation-proved | `in-progress` 0/4 | 8–12h | — | `harness/CAUGHT.md`: three planted bugs, seeds-to-failure, shrink lengths | — | no |
 | 3 | Renderer, read-only — **first deploy** | `not-started` | 12–18h | — | **A live URL.** Pan and zoom a seeded 5,000-shape board | — | no |
 | 4 | Input and tools | `not-started` | 12–18h | — | The same URL, now drawable: rect, pen, select, move, delete, undo | — | no |
 | 5 | YjsStore behind the seam | `not-started` | 10–16h | — | `?store=memory\|yjs` on the live URL; two tabs sync with the server switched off | — | no |
@@ -231,6 +231,14 @@ Also deferred: `MemoryStore`'s `restyle`/`reorder`/`delete` staging branches. `r
 all five commands and `checkPatch` holds all five to their footprints — what is missing is
 only the store's staging for three of them, which Phase 4's tools demand.
 
+**Returned early, 2026-09-03 (calibration).** That last deferral was wrong by one phase, and
+the correction is worth recording rather than quietly absorbing: Phase 2's generator needs
+`reorder` to produce two inserts into the same gap (the only way to exercise the unjittered-index
+mutant) and needs `delete` for the no-orphans invariant. So the test that demanded them arrived
+in Phase 2, not Phase 4, and they were built there. The prediction "Phase 4's tools demand them"
+named the wrong demander — the *suite* demands a command vocabulary before the *UI* does, which
+is the general shape of putting a property suite before a renderer.
+
 **Exit criteria**
 
 | ID | Criterion | Kind | Verifier | ✓ |
@@ -278,8 +286,8 @@ this phase to check itself against.
 
 | Field | Value |
 |---|---|
-| **Status** | `not-started` |
-| Estimate / Actual / Unplanned | 8–12h / — / — |
+| **Status** | `in-progress` 0/4 |
+| Estimate / Actual / Unplanned | 8–12h / — / 1 |
 | Makes true | The reducer and resolver are tested by generated command sequences rather than by examples, and the suite is **proved to have teeth** by three planted defects it catches. |
 | Depends on | 1 (technical) |
 | A stranger sees | `harness/CAUGHT.md` — three planted bugs with seeds-to-first-failure and shrink lengths. |
@@ -292,6 +300,12 @@ this phase to check itself against.
 means that work was built on an untested resolver, and schema bugs become midnight demo bugs.
 
 **Tasks**
+- [x] *Unplanned prerequisite:* `MemoryStore` staging for `restyle`, `reorder` and `delete`.
+  Carried forward from Phase 1 to Phase 4 and needed here instead — see Phase 1's
+  carried-forward note. Six tests, including the two suppression cases the branches introduce
+  (recolour to the same colour writes nothing; draw-then-delete in one gesture nets to nothing)
+  and the staged-drop read (a shape deleted mid-gesture cannot then be dragged, or the `??`
+  fallthrough resurrects it on commit).
 - [ ] `fast-check` generators over the real `Command` vocabulary — not synthetic data.
 - [ ] Invariants asserted at **every intermediate state**: unique ids, exactly-once draw order, no orphan parents, no `NaN` geometry.
 - [ ] Seeded, with the seed printed on failure, and a committed regression corpus at `harness/seeds/regressions.json`.

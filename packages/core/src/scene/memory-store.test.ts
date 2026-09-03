@@ -28,6 +28,10 @@ const rectDraft = (id: string, idx: string): ShapeDraft => ({
   } as unknown as Style,
 });
 
+/** A style differing only in fill, for recolour tests. */
+const styleWith = (fill: string): Style =>
+  ({ fill, stroke: '#000000', strokeWidth: 1, opacity: 1 }) as unknown as Style;
+
 /** The same rectangle, moved and optionally turned. One frame of a drag. */
 const at = (x: number, y: number, rot = 0): Transform =>
   ({ x, y, w: 10, h: 10, rot }) as unknown as Transform;
@@ -415,5 +419,103 @@ group('revoked', () => {
     expect(() =>
       store.gesture((tx) => tx.apply({ kind: 'create', draft: rectDraft('s1', 'a0') })),
     ).toThrow(/re-entrant/i);
+  });
+});
+
+group('tools', () => {
+  const withThree = () => {
+    const store = createMemoryStore({ author: 'u1', now: () => 0 });
+    const first = 's1' as ShapeId;
+    const second = 's2' as ShapeId;
+    const third = 's3' as ShapeId;
+    store.gesture((tx) => {
+      tx.apply({ kind: 'create', draft: rectDraft(first, 'a0') });
+      tx.apply({ kind: 'create', draft: rectDraft(second, 'a1') });
+      tx.apply({ kind: 'create', draft: rectDraft(third, 'a2') });
+    });
+    return { store, first, second, third };
+  };
+
+  const orderOf = (store: ReturnType<typeof createMemoryStore>) =>
+    store.drawOrder().map((shape) => shape.id);
+
+  it('bringing a shape to the front puts it last in draw order', () => {
+    const { store, first, second, third } = withThree();
+
+    // The caller resolves "bring to front" to a concrete index before the command exists —
+    // a reducer that read its neighbours would be order-dependent.
+    const result = store.gesture((tx) =>
+      tx.apply({ kind: 'reorder', entries: [{ id: first, idx: 'a3' as FracIdx }] }),
+    );
+
+    expect(result.opCount).toBe(1);
+    expect(orderOf(store)).toEqual([second, third, first]);
+  });
+
+  it('recolouring a shape changes its style and leaves its geometry alone', () => {
+    const { store, first } = withThree();
+    const before = store.get(first)?.t;
+
+    const result = store.gesture((tx) =>
+      tx.apply({ kind: 'restyle', entries: [{ id: first, style: styleWith('#ff0000') }] }),
+    );
+
+    expect(result.opCount).toBe(1);
+    expect(store.get(first)?.style.fill).toBe('#ff0000');
+    expect(store.get(first)?.t).toEqual(before);
+  });
+
+  it('recolouring to the same colour writes nothing', () => {
+    const { store, first } = withThree();
+    const current = store.get(first)?.style;
+    expect(current).toBeDefined();
+
+    const result = store.gesture((tx) =>
+      tx.apply({ kind: 'restyle', entries: [{ id: first, style: current! }] }),
+    );
+
+    // Same suppression rule as a cancelled drag, on the other hot key.
+    expect(result.committed).toBe(false);
+    expect(result.opCount).toBe(0);
+  });
+
+  it('deleting a shape takes it off the board', () => {
+    const { store, first, second, third } = withThree();
+
+    const result = store.gesture((tx) => tx.apply({ kind: 'delete', ids: [second] }));
+
+    expect(result.opCount).toBe(1);
+    expect(store.has(second)).toBe(false);
+    expect(store.get(second)).toBeUndefined();
+    expect(orderOf(store)).toEqual([first, third]);
+  });
+
+  it('drawing a shape and deleting it in one gesture writes nothing', () => {
+    const store = createMemoryStore({ author: 'u1', now: () => 0 });
+    const id = 's9' as ShapeId;
+
+    const result = store.gesture((tx) => {
+      tx.apply({ kind: 'create', draft: rectDraft(id, 'a0') });
+      tx.apply({ kind: 'delete', ids: [id] });
+    });
+
+    // Net nothing, so nothing is written and nothing repaints — the same rule as a drag that
+    // ends where it began, applied to existence rather than to geometry.
+    expect(result.committed).toBe(false);
+    expect(result.opCount).toBe(0);
+    expect(store.has(id)).toBe(false);
+  });
+
+  it('a shape deleted mid-gesture cannot be dragged afterwards', () => {
+    const { store, first } = withThree();
+
+    const result = store.gesture((tx) => {
+      tx.apply({ kind: 'delete', ids: [first] });
+      return tx.apply({ kind: 'transform', entries: [{ id: first, t: at(99, 99) }] });
+    });
+
+    // The staged view has to reflect the drop, or a gesture composes against a shape it
+    // already removed and resurrects it on commit.
+    expect(result.value).toEqual({ ok: false, reason: 'unknown-shape' });
   });
 });

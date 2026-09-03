@@ -60,8 +60,14 @@ type ApplyOutcome = { readonly ok: true } | { readonly ok: false; readonly reaso
 
 /** One shape's staged state within a single gesture. */
 interface Staged {
-  /** The value as staged, so a read mid-gesture composes against the gesture's own effects. */
-  readonly shape: Shape;
+  /** Carried separately because a staged drop has no shape to read it from. */
+  readonly id: ShapeId;
+  /**
+   * The value as staged, so a read mid-gesture composes against the gesture's own effects.
+   * `undefined` when this gesture dropped the shape — which is what stops a later command in
+   * the same gesture composing against a shape it has already removed.
+   */
+  readonly shape: Shape | undefined;
   /**
    * True when this gesture created the shape. A create is one whole-container `put`, so it
    * costs one write however many keys the rest of the gesture goes on to touch.
@@ -83,16 +89,34 @@ interface Staged {
  * visibly does nothing on the stack.
  */
 const differs = (staged: Shape, committed: Shape, key: ShapeKey): boolean => {
-  if (key !== 't') return notYet(`no-op suppression for '${key}'`, 'the restyle and reorder reds');
-  const next = staged.t;
-  const previous = committed.t;
-  return (
-    next.x !== previous.x ||
-    next.y !== previous.y ||
-    next.w !== previous.w ||
-    next.h !== previous.h ||
-    next.rot !== previous.rot
-  );
+  if (key === 't') {
+    const next = staged.t;
+    const previous = committed.t;
+    return (
+      next.x !== previous.x ||
+      next.y !== previous.y ||
+      next.w !== previous.w ||
+      next.h !== previous.h ||
+      next.rot !== previous.rot
+    );
+  }
+
+  if (key === 'style') {
+    const next = staged.style;
+    const previous = committed.style;
+    return (
+      next.fill !== previous.fill ||
+      next.stroke !== previous.stroke ||
+      next.strokeWidth !== previous.strokeWidth ||
+      next.opacity !== previous.opacity
+    );
+  }
+
+  if (key === 'idx') return staged.idx !== committed.idx;
+
+  // The remaining keys are `birth`: no command declares them in its footprint, so no `set`
+  // can reach them and there is nothing to compare.
+  return notYet(`no-op suppression for '${key}'`, 'a command that writes a birth key');
 };
 
 /**
@@ -118,6 +142,17 @@ const commitStaged = (staged: ReadonlyMap<ShapeId, Staged>, shapes: Map<ShapeId,
   const ids = new Set<ShapeId>();
 
   for (const entry of staged.values()) {
+    if (entry.shape === undefined) {
+      // Nothing to drop means nothing happened: a shape drawn and deleted inside one gesture
+      // was never committed, so it nets to zero writes and zero repaints — the same rule as a
+      // drag that ends where it began, applied to existence instead of geometry.
+      if (!shapes.delete(entry.id)) continue;
+      ops += 1;
+      ids.add(entry.id);
+      mask = combine(mask, DIRTY_EXISTENCE);
+      continue;
+    }
+
     if (entry.created) {
       shapes.set(entry.shape.id, entry.shape);
       ops += 1;
@@ -255,12 +290,22 @@ export const createMemoryStore = (options: MemoryStoreOptions): SceneStore => {
 
       const staged = new Map<ShapeId, Staged>();
 
-      /** The scene as this gesture has left it so far, falling back to what is committed. */
-      const peek = (id: ShapeId): Shape | undefined => staged.get(id)?.shape ?? shapes.get(id);
+      /**
+       * The scene as this gesture has left it, falling back to what is committed.
+       *
+       * Not `staged.get(id)?.shape ?? shapes.get(id)`: a staged *drop* has an entry whose
+       * shape is undefined, and the `??` would fall through to the committed value and
+       * resurrect it.
+       */
+      const peek = (id: ShapeId): Shape | undefined => {
+        const entry = staged.get(id);
+        return entry === undefined ? shapes.get(id) : entry.shape;
+      };
 
       const stage = (shape: Shape, key: ShapeKey): void => {
         const previous = staged.get(shape.id);
         staged.set(shape.id, {
+          id: shape.id,
           shape,
           created: previous?.created ?? false,
           keys: new Set(previous === undefined ? [key] : [...previous.keys, key]),
@@ -289,6 +334,7 @@ export const createMemoryStore = (options: MemoryStoreOptions): SceneStore => {
         switch (command.kind) {
           case 'create': {
             staged.set(command.draft.id, {
+              id: command.draft.id,
               shape: stampShape(command.draft, { author: options.author, at: options.now() }),
               created: true,
               keys: new Set(),
@@ -311,10 +357,34 @@ export const createMemoryStore = (options: MemoryStoreOptions): SceneStore => {
             for (const shape of moved) stage(shape, 't');
             return { ok: true };
           }
-          case 'restyle':
-          case 'reorder':
-          case 'delete':
-            return notYet(`apply(${command.kind})`, 'the next red in PHASES.md Phase 1');
+          case 'restyle': {
+            const restyled: Shape[] = [];
+            for (const entry of command.entries) {
+              const current = peek(entry.id);
+              if (current === undefined) return { ok: false, reason: 'unknown-shape' };
+              restyled.push({ ...current, style: entry.style });
+            }
+            for (const shape of restyled) stage(shape, 'style');
+            return { ok: true };
+          }
+          case 'reorder': {
+            const reordered: Shape[] = [];
+            for (const entry of command.entries) {
+              const current = peek(entry.id);
+              if (current === undefined) return { ok: false, reason: 'unknown-shape' };
+              reordered.push({ ...current, idx: entry.idx });
+            }
+            for (const shape of reordered) stage(shape, 'idx');
+            return { ok: true };
+          }
+          case 'delete': {
+            // A parent drop, so nothing per-key is staged: the whole container goes, which is
+            // what beats a concurrent child write in both clientID directions.
+            for (const id of command.ids) {
+              staged.set(id, { id, shape: undefined, created: false, keys: new Set() });
+            }
+            return { ok: true };
+          }
           default:
             return notYet('apply', 'an unhandled command kind');
         }
