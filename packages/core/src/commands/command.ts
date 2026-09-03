@@ -249,8 +249,16 @@ export type SelectionBounds = (scene: ScenePeek, ids: readonly ShapeId[]) => Rec
  * decides whether a produced patch obeys the architecture's own rules — one hot key per
  * command, no key removal, no relative op. It is how a future contributor who adds a
  * command finds out at test time rather than at incident time.
+ *
+ * **Takes the kind.** Amended 2026-09-03: the first draft was `(patch, touches)`, which
+ * cannot use its own second argument. A patch does not carry the kind that produced it, so
+ * there is no row of {@link CommandTouches} to compare it against — and any "writes an
+ * undeclared key" rule is vacuous anyway, because `create` declares every key. With the kind
+ * in hand the table becomes load-bearing: a command whose implementation drifts from its
+ * declared footprint is a violation, which is the drift the table exists to catch.
  */
 export type CheckPatch = (
+  kind: CommandKind,
   patch: Patch,
   touches: CommandTouches,
 ) => readonly { readonly violation: string; readonly op: PatchOp }[];

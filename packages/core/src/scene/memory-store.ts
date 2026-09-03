@@ -1,4 +1,4 @@
-import type { Command, RejectReason } from '../commands/command.ts';
+import type { Command, RejectReason, ScenePeek } from '../commands/command.ts';
 import type { Shape, ShapeId, ShapeKey } from '../schema/shape.ts';
 import type {
   GestureResult,
@@ -8,7 +8,7 @@ import type {
   SceneStore,
   Unsubscribe,
 } from './store.ts';
-import { SCHEMA_VERSION } from '../schema/validate.ts';
+import { missingTarget, stampShape } from '../commands/apply.ts';
 import { compareDrawOrder } from './order.ts';
 
 /**
@@ -160,13 +160,32 @@ export const createMemoryStore = (options: MemoryStoreOptions): SceneStore => {
         });
       };
 
+      /**
+       * The scene as this gesture has left it, in the shape a reducer expects.
+       *
+       * Staged-aware on purpose: a shape created earlier in the same gesture has to count as
+       * present, or a create-then-drag would be refused for naming a shape it just made.
+       */
+      const stagedScene: ScenePeek = {
+        get: peek,
+        has: (id) => peek(id) !== undefined,
+      };
+
       const applyCommand = (command: Command): ApplyOutcome => {
+        // Refusal is decided by the shared reducer, never re-derived here. Two
+        // implementations satisfy `SceneStore`, and one accepting a command the other refuses
+        // is a divergence no digest catches: both replicas stay internally consistent and
+        // hold different scenes.
+        const missing = missingTarget(stagedScene, command);
+        if (missing !== undefined) return { ok: false, reason: 'unknown-shape' };
+
         switch (command.kind) {
           case 'create': {
-            // The stamp is the store's, not the caller's. `author` and `v` are added here and
-            // nowhere else.
-            const shape: Shape = { ...command.draft, author: options.author, v: SCHEMA_VERSION };
-            staged.set(shape.id, { shape, created: true, keys: new Set() });
+            staged.set(command.draft.id, {
+              shape: stampShape(command.draft, { author: options.author, at: options.now() }),
+              created: true,
+              keys: new Set(),
+            });
             return { ok: true };
           }
           case 'transform': {
@@ -176,6 +195,9 @@ export const createMemoryStore = (options: MemoryStoreOptions): SceneStore => {
             const moved: Shape[] = [];
             for (const entry of command.entries) {
               const current = peek(entry.id);
+              // Unreachable: `missingTarget` has already established every entry is present.
+              // Kept because it is what narrows `Shape | undefined` without an assertion, and
+              // an assertion here would be a claim the compiler cannot check.
               if (current === undefined) return { ok: false, reason: 'unknown-shape' };
               moved.push({ ...current, t: entry.t });
             }
