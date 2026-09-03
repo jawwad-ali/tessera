@@ -42,8 +42,10 @@ group('repro', () => {
       return `s${minted}` as ShapeId;
     };
 
+    let commands = 0;
     for (const action of FOUND_1) {
       const emitted = emit(action, store.drawOrder(), nextId, rng);
+      commands += emitted.commands.length;
       store.gesture((tx) => {
         for (const command of emitted.commands) tx.apply(command);
       });
@@ -54,6 +56,10 @@ group('repro', () => {
         `after ${action.kind}`,
       ).toEqual([]);
     }
+
+    // Pinned because CAUGHT.md publishes it: the shrink length in commands, which is a
+    // different number from the shrink length in actions whenever a drag survives shrinking.
+    expect(commands).toBe(5);
   });
 
   it('found-1: keeps two inserts into the same tight gap distinct and in bounds', () => {

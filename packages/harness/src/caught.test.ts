@@ -123,6 +123,21 @@ group('caught', () => {
     expect(problems[0]).toContain('neither planted nor found');
   });
 
+  it('reads only the first table, so a second one is not mistaken for bad rows', () => {
+    // The evidence file carries a mutant-to-commit mapping below the main table. An earlier
+    // version of this checker read those three-column rows as malformed ten-column ones and
+    // failed on correct evidence, which is how a gate gets switched off.
+    const second = ['| mutant | passes at | reverted at |', '|---|---|---|', '| m1 | abc | def |'];
+
+    expect(
+      checkCaught({
+        markdown: [HEADER, row(), '', 'Some prose.', '', ...second].join('\n'),
+        corpus: CORPUS,
+        filesTouched: touchedReal,
+      }),
+    ).toEqual([]);
+  });
+
   it('refuses a file with no table at all', () => {
     const problems = checkCaught({
       markdown: '# CAUGHT\n\nNothing was caught, honestly.',

@@ -75,7 +75,34 @@ if (!outcome.failed) {
 
 const shrunk = outcome.counterexample?.[0];
 const actions = shrunk === undefined ? 0 : shrunk.actions.length;
-const kinds = shrunk === undefined ? '' : shrunk.actions.map((action) => action.kind).join(' → ');
+const kinds = shrunk === undefined ? '' : shrunk.actions.map((action) => action.kind).join(' -> ');
+
+/**
+ * Commands the shrunk plan actually emits.
+ *
+ * Reported alongside the action count because the two are different numbers and only one of
+ * them is the size of the counterexample a person reads. One action can be 300 commands: a
+ * drag emits a transform per frame, which is the whole reason staging collapse exists.
+ */
+const commandsOf = (plan: Plan | undefined): number => {
+  if (plan === undefined) return 0;
+  const store = createMemoryStore({ author: 'u1', now: () => 0 });
+  const rng = seededRng(plan.rngSeed);
+  let minted = 0;
+  const nextId = (): ShapeId => {
+    minted += 1;
+    return `s${minted}` as ShapeId;
+  };
+  let total = 0;
+  for (const action of plan.actions) {
+    const emitted = emit(action, store.drawOrder(), nextId, rng);
+    total += emitted.commands.length;
+    store.gesture((tx) => {
+      for (const command of emitted.commands) tx.apply(command);
+    });
+  }
+  return total;
+};
 const detail = shrunk === undefined ? [] : violationsOf(shrunk);
 
 process.stdout.write(
@@ -83,7 +110,7 @@ process.stdout.write(
     'CAUGHT',
     `  seeds to first failure : ${outcome.numRuns}`,
     `  shrinks               : ${outcome.numShrinks}`,
-    `  shrink length (actions): ${actions}`,
+    `  shrink length         : ${actions} actions / ${commandsOf(shrunk)} commands`,
     `  wall-clock            : ${elapsed}ms`,
     `  base seed             : ${SEED}`,
     `  shrunk plan           : ${kinds}`,

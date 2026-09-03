@@ -75,10 +75,19 @@ const isTestOnly = (path: string): boolean =>
  * guessed at.
  */
 export const parseRows = (markdown: string): { readonly rows: readonly CaughtRow[]; readonly problems: readonly string[] } => {
-  const lines = markdown
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.startsWith('|'));
+  // The FIRST contiguous run of table lines, not every table line in the file. The evidence
+  // file legitimately carries a second table — the mutant-to-commit mapping — and an earlier
+  // version of this checker read its three-column rows as malformed rows of the ten-column
+  // one. A gate that fails on correct evidence gets switched off.
+  const lines: string[] = [];
+  for (const raw of markdown.split('\n')) {
+    const line = raw.trim();
+    if (line.startsWith('|')) {
+      lines.push(line);
+      continue;
+    }
+    if (lines.length > 0) break;
+  }
 
   const cellsOf = (line: string): readonly string[] =>
     line

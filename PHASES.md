@@ -67,7 +67,7 @@ Estimates are evening-hours. Cumulative assumes ~10–12h/week.
 |---|---|---|---|---|---|---|---|
 | 0 | Foundations made honest | `done` | 3–5h | ~5h | A public repo whose README describes only what exists, with a genuinely green CI badge | [repo](https://github.com/jawwad-ali/tessera) - [docs/measurements.md](./docs/measurements.md) | no |
 | 1 | Core runtime | `done` 6/6 | 10–14h | ~6h | *(unchanged — invisible phase, justified: nothing can be drawn or synced before the reducer exists)* | [core/src](./packages/core/src) — 173 tests | no |
-| 2 | Property suite, mutation-proved | `in-progress` 1/4 | 8–12h | — | `harness/CAUGHT.md`: three planted bugs, seeds-to-failure, shrink lengths | — | no |
+| 2 | Property suite, mutation-proved | `done` 4/4 | 8–12h | ~4h | `harness/CAUGHT.md`: three planted bugs **and one real one**, seeds-to-failure, shrink lengths | [harness/CAUGHT.md](./harness/CAUGHT.md) — 197 tests | no |
 | 3 | Renderer, read-only — **first deploy** | `not-started` | 12–18h | — | **A live URL.** Pan and zoom a seeded 5,000-shape board | — | no |
 | 4 | Input and tools | `not-started` | 12–18h | — | The same URL, now drawable: rect, pen, select, move, delete, undo | — | no |
 | 5 | YjsStore behind the seam | `not-started` | 10–16h | — | `?store=memory\|yjs` on the live URL; two tabs sync with the server switched off | — | no |
@@ -286,8 +286,8 @@ this phase to check itself against.
 
 | Field | Value |
 |---|---|
-| **Status** | `in-progress` 1/4 |
-| Estimate / Actual / Unplanned | 8–12h / — / 1 |
+| **Status** | `done` — all four exit criteria green |
+| Estimate / Actual / Unplanned | 8–12h / ~4h / 10 |
 | Makes true | The reducer and resolver are tested by generated command sequences rather than by examples, and the suite is **proved to have teeth** by three planted defects it catches. |
 | Depends on | 1 (technical) |
 | A stranger sees | `harness/CAUGHT.md` — three planted bugs with seeds-to-first-failure and shrink lengths. |
@@ -315,9 +315,9 @@ means that work was built on an untested resolver, and schema bugs become midnig
 
 | ID | Criterion | Kind | Verifier | ✓ |
 |---|---|---|---|---|
-| 2.C1 | `pnpm test:converge` runs ≥500 seeds in under 30s and exits 0, **and fails if either bound is missed** — the counts and elapsed time are asserted inside the suite and printed, not merely configured. Also fails if more than 30% of generated actions are wasted. **Amended 2026-09-03**, see above: the original verifier already passed and could observe neither bound. | command | `pnpm test:converge` | ☐ |
-| 2.C2 | **Three planted mutants each have a commit in history where the mutant PASSES because its invariant was deleted**: unjittered fractional index, draw order from map insertion order, a reducer writing `t` and `style` in one command | artifact | `git log --grep=mutant` | ☐ |
-| 2.C3 | Each planted mutant publishes seeds-to-first-failure, shrink length in commands, and wall-clock | number | rows in `harness/CAUGHT.md` | ☐ |
+| 2.C1 | `pnpm test:converge` runs ≥500 seeds in under 30s and exits 0, **and fails if either bound is missed** — the counts and elapsed time are asserted inside the suite and printed, not merely configured. Also fails if more than 30% of generated actions are wasted. **Amended 2026-09-03**, see above: the original verifier already passed and could observe neither bound. | command | `pnpm test:converge` | ☐☑ |
+| 2.C2 | **Three planted mutants each have a commit in history where the mutant PASSES because its invariant was deleted**: unjittered fractional index (`bb62535`), draw order from map insertion order (`8e10821`), a reducer writing `t` and `style` in one command (`f204f36`). CI is green on all three; each is reverted by the next commit. | artifact | `git log --grep=mutant` | ☑ |
+| 2.C3 | Each planted mutant publishes seeds-to-first-failure, shrink length in commands, and wall-clock. Shrink length is reported in **both** actions and commands, because they are different numbers — one action can be 300 commands — and produced by `pnpm mutant:probe` rather than typed. | number | rows in `harness/CAUGHT.md` | ☑ |
 | 2.C4 | A script fails the build if any `CAUGHT.md` row lacks a column, if a `found` row's seed is absent from the corpus, or if a `found` row's fixing commit touches only test files | command | `pnpm caught:check` | ☐☑ |
 
 **Pre-registered thresholds, 2026-09-03 — written before the generator existed and before
@@ -345,6 +345,33 @@ is reported as zero** — never as a pass, never as "a finding about the generat
 **Slip risk:** Writing generators that produce *interesting* command sequences rather than
 mostly-rejected ones is the real work; a generator that mostly trips `RejectReason` tests
 nothing.
+
+**What actually happened (appended at close, prediction kept above).** The phase did what it
+was placed here to do, and the headline is that **the suite found a real bug in code that had
+already shipped** — `found-1`, in `idxBetween`, on the 1,492nd seed. That code had example
+tests, a property test, mutation checks against a broken variant, and a 240,000-insertion
+hammer whose "zero fallbacks" I had recorded as evidence the fallback path was free. It was
+free only for the workload I chose. The stated assumption — *our example tests cover the
+reachable state space* — is killed by measurement, which is the strongest single result in the
+project so far.
+
+Four more findings came out of building it, none of them planned:
+
+1. **The generator failed its own pre-registered threshold on its first run**, 51.8% wasted
+   against a 30% ceiling. Rule 3 forbids moving the number, so the cause was measured rather
+   than guessed: 399 of 500 plans skipped their *first* action, and every skip of a drag,
+   restack, erase, recolour or cancel happened on an empty board. Fixed by opening each plan
+   with draws and topping up a colliding multi-select — 6.2% after, and writes up from 1,499 to
+   17,173.
+2. **`idxBetween(k, k)` threw `Error: " >= "`**, and inverted neighbours *silently returned a
+   key below the lower bound*. Both reachable, both now refused legibly.
+3. **The harness reported a crash where an invariant was the real signal.** An unsorted draw
+   order made every restack compute inverted neighbours, so the mutant masked everything after
+   the throw. The generator now models a user — who can only ask for a gap the interface offers.
+4. **`checkCaught` read the evidence file's second table as malformed rows of the first**, so
+   the gate failed on correct evidence. A gate that does that gets switched off.
+
+And the one that matters most for everything already claimed: **D-5**, below.
 
 **Known defect found and fixed mid-phase, 2026-09-03 — D-5.** `camera.test.ts` had a property
 test failing **roughly one run in six**, and `pnpm verify` had therefore been passing by luck —
@@ -718,7 +745,7 @@ real estimate error and the only input that makes the next estimate honest.
 |---|---|---|---|---|---|
 | 0 | 3–5h | ~5h | 3 | ~5h | Unplanned: `bench/` had to become a workspace member; `func-style` is not auto-fixable so 42 declarations needed a transformer; the crdt purity boundary rejected `Buffer` in a test. |
 | 1 | 10–14h | ~6h | 8 | ~11h | Wall-clock from the Phase 0 close commit to the Phase 1 close commit (14:24→20:35), not a timer — it includes the analysis detours. Unplanned: `transformBounds` overflow forced `COORD_LIMIT` into existence; `CheckPatch`'s signature could not use its own argument; `1.C3`'s undo clause was unobservable and needed `4.C5`; two mutation escapes (forged attribution, notify-per-write); one vacuous branch (the `put` footprint rule); `legacy-wins` turned out type-unrepresentable; `SCHEMA_VERSION` was declared twice. |
-| 2 | 8–12h | — | — | — | — |
+| 2 | 8–12h | ~4h | 10 | ~15h | Wall-clock by commit timestamp. Unplanned: the restyle/reorder/delete staging carried forward from Phase 1 was needed here; the generator missed its own wasted-action ceiling; `found-1`; D-5's flaky camera test and the 33 unseeded `fc.assert` calls behind it; `idxBetween(k,k)` and inverted bounds; the harness reporting a crash instead of an invariant; `patch-shape` did not exist yet; `core/src/index.ts` exported nothing from Phase 1; `checkCaught` mis-parsed a two-table file; the mutation script's deletion edits were not reversible. |
 | 3 | 12–18h | — | — | — | — |
 | 4 | 12–18h | — | — | — | — |
 | 5 | 10–16h | — | — | — | — |
