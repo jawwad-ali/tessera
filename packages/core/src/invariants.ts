@@ -139,7 +139,7 @@ export const checkScene = (scene: SceneStore): readonly Violation[] => {
   const violations: Violation[] = [];
 
   const seen = new Set<ShapeId>();
-  const indices = new Map<string, ShapeId>();
+  // MUTANT m1: the index map went with the invariant it served.
 
   for (const [position, shape] of order.entries()) {
     if (seen.has(shape.id)) {
@@ -154,18 +154,7 @@ export const checkScene = (scene: SceneStore): readonly Violation[] => {
     }
     seen.add(shape.id);
 
-    const clash = indices.get(shape.idx);
-    if (clash !== undefined) {
-      // Two shapes at the same index. Order still resolves, because `compareDrawOrder` breaks
-      // the tie on id — but the tie-break is a *last* resort, and reaching it means two
-      // clients that asked for different positions were given the same one.
-      violations.push({
-        invariant: 'distinct-index',
-        id: shape.id,
-        detail: `shares idx ${shape.idx} with ${clash}`,
-      });
-    }
-    indices.set(shape.idx, shape.id);
+    // MUTANT m1: the `distinct-index` invariant has been deleted.
 
     if (!scene.has(shape.id) || scene.get(shape.id) !== shape) {
       violations.push({
