@@ -192,8 +192,8 @@ evening. That argument is the point of doing this first rather than at week eigh
 
 | Field | Value |
 |---|---|
-| **Status** | `not-started` |
-| Estimate / Actual / Unplanned | 10–14h / — / — |
+| **Status** | `in-progress` |
+| Estimate / Actual / Unplanned | 10–14h / ~4h so far / 1 |
 | Makes true | The untrusted-document boundary, the whole write vocabulary, and the store seam exist as pure total functions — so every hazard the schema claims to absorb can be shown absorbed with no Yjs, no DOM and no network. |
 | Depends on | 0 (technical) |
 | A stranger sees | *Unchanged.* **Invisible phase — justified:** nothing can be drawn or synced before the reducer exists, and it is one phase, not a run. |
@@ -206,7 +206,8 @@ evening. That argument is the point of doing this first rather than at week eigh
 **Tasks**
 - [ ] `schema/validate.ts` — the `DocValue` guard: NaN, Infinity, `-0`, undefined-as-a-present-key, a string in a numeric field, a 10MB string, and the `{}` a peer's `Date` arrives as.
 - [ ] `schema/migrate.ts` — `ResolveShape`: total, never throws, legacy-wins-if-present, one `Quirk` per repair, `shape: undefined` only when nothing renderable survives.
-- [ ] `scene/order.ts` — `idxBetween` with injected `Rng` (`Math.random` is lint-banned in core), and a total `compareDrawOrder` with `id` as tie-break.
+- [x] `scene/order.ts` — `idxBetween` with injected `Rng` (`Math.random` is lint-banned in core), and a total `compareDrawOrder` with `id` as tie-break. `abd94be`
+- [x] *Unplanned:* `schema/bounds.ts` — `transformBounds` overflows on all-finite input, so `COORD_LIMIT` had to exist before the resolver could range-check against it. `abd94be`
 - [ ] `commands/apply.ts` — `reduce`, `invert`, `COMMAND_TOUCHES`, `checkPatch`, `selectionBounds`.
 - [ ] `MemoryStore` — with `GestureTx` staging, no-op suppression, `DirtyView` revocation, and runtime re-entrancy refusal.
 - [ ] `digest().bytes` **throws** in `MemoryStore` until the Yjs probe exists in Phase 5. A same-named field with different semantics across the two stores is exactly the footgun invariant 8 exists to stop.
