@@ -219,19 +219,34 @@ const several = (order: readonly Shape[], selectors: readonly number[], want: nu
 };
 
 /**
- * The index of the `gap`th slot in the draw order, jittered.
+ * The index of the `gap`th slot in the draw order, jittered — or nothing, if that slot is not
+ * a real gap.
  *
- * Walks the upper neighbour forward past any shape tied with the lower one. Two shapes sharing
- * an index leave no gap between them, so `idxBetween` refuses — and a real interaction layer
- * has to widen exactly like this rather than crash. Without it the suite reports a *crash*
- * where the interesting signal is an *invariant*, which is the difference between "something
- * broke" and "two shapes were given the same position".
+ * This models a *user*, and a user can only ask for a position the interface can offer. The
+ * interface offers gaps between adjacent shapes in the order it renders, so:
+ *
+ *  - **Ties are widened.** Two shapes sharing an index leave no gap between them, so the
+ *    upper neighbour walks forward past the tie. A real interaction layer has to do the same.
+ *  - **An inverted pair offers no gap at all.** If the rendered order is not monotonic in
+ *    `idx` then some adjacent pair has `below > above`, and there is no key between them in
+ *    either direction. The interface would offer nothing there, so neither does this.
+ *
+ * The second case matters more than it looks, and it took a planted mutant to notice. With
+ * draw order taken from map iteration, every restack computed inverted neighbours and
+ * `idxBetween` threw — so the suite reported a *crash* rather than the `total-order` violation
+ * that explains it, and every action after the throw went unexamined. Nothing is swallowed:
+ * the underlying defect is still caught on the first seed, by the invariant written for it,
+ * with a message that names it.
  */
-const gapIndex = (order: readonly Shape[], gap: number, rng: Rng): FracIdx => {
+const gapIndex = (order: readonly Shape[], gap: number, rng: Rng): FracIdx | undefined => {
   const below = order[gap - 1]?.idx;
   let above = gap;
   while (above < order.length && order[above]?.idx === below) above += 1;
-  return idxBetween(below, order[above]?.idx, rng);
+
+  const upper = order[above]?.idx;
+  if (below !== undefined && upper !== undefined && below >= upper) return undefined;
+
+  return idxBetween(below, upper, rng);
 };
 
 /**
@@ -339,8 +354,10 @@ export const emit = (
       const shape = at(order, action.pick);
       if (shape === undefined) return NOTHING;
       const gap = action.gap % (order.length + 1);
+      const idx = gapIndex(order, gap, rng);
+      if (idx === undefined) return NOTHING;
       return {
-        commands: [{ kind: 'reorder', entries: [{ id: shape.id, idx: gapIndex(order, gap, rng) }] }],
+        commands: [{ kind: 'reorder', entries: [{ id: shape.id, idx }] }],
         skipped: false,
       };
     }
@@ -353,6 +370,7 @@ export const emit = (
       // "send to back" against the same snapshot is what jitter exists to keep distinct.
       const first = gapIndex(order, gap, rng);
       const second = gapIndex(order, gap, rng);
+      if (first === undefined || second === undefined) return NOTHING;
       return {
         commands: [
           {
