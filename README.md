@@ -13,6 +13,11 @@ sync layer and the renderer written by hand rather than bought.
 
 ## Read this first
 
+**[PHASES.md](./PHASES.md)** is the project tracker — phase status, exit criteria, the
+DEMO-COMPLETE gate, the decision log, and the known defects in the current commit. It also
+records that the feature list below currently describes more than the tree contains
+(defect **D-2**), pending the Phase 0 rewrite.
+
 **[ARCHITECTURE.md](./ARCHITECTURE.md)** is binding, not aspirational. It defines the module
 boundaries, the four state tiers, the shape schema and its migration rules, the relay's
 layering, and ten invariants that are enforced in CI rather than in review.
