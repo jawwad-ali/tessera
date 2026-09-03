@@ -8,6 +8,7 @@ import type {
   SceneStore,
   Unsubscribe,
 } from './store.ts';
+import { SCHEMA_VERSION } from '../schema/validate.ts';
 import { compareDrawOrder } from './order.ts';
 
 /**
@@ -36,9 +37,6 @@ export interface MemoryStoreOptions {
    */
   readonly now: () => number;
 }
-
-/** The schema version this store stamps on shapes it creates. */
-const SCHEMA_VERSION = 1;
 
 /**
  * Not yet demanded by a test.
