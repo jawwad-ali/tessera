@@ -22,6 +22,14 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
 
+      # The same gate developers run locally, as ONE step. Defect D-1 was that the
+      # itemised steps below could go red while `pnpm verify` stayed green, because
+      # `pnpm test` tolerates a project with no test files while `--project <name>` does
+      # not. Running the aggregate here means local and CI cannot diverge again; the
+      # itemised steps stay because they say WHICH half broke.
+      - name: verify (same gate as local)
+        run: pnpm verify
+
       # Invariant 2 first: everything downstream is meaningless if the tree has two yjs.
       - name: architecture — single yjs copy
         run: node scripts/check-single-yjs.ts

@@ -63,7 +63,7 @@ Estimates are evening-hours. Cumulative assumes ~10–12h/week.
 
 | # | Phase | Status | Est | Act | A stranger sees | Evidence | Post-gate optional |
 |---|---|---|---|---|---|---|---|
-| 0 | Foundations made honest | `not-started` | 3–5h | — | A public repo whose README describes only what exists, with a genuinely green CI badge | — | no |
+| 0 | Foundations made honest | `in-progress` | 3–5h | — | A public repo whose README describes only what exists, with a genuinely green CI badge | — | no |
 | 1 | Core runtime | `not-started` | 10–14h | — | *(unchanged — invisible phase, justified: nothing can be drawn or synced before the reducer exists)* | — | no |
 | 2 | Property suite, mutation-proved | `not-started` | 8–12h | — | `harness/CAUGHT.md`: three planted bugs, seeds-to-failure, shrink lengths | — | no |
 | 3 | Renderer, read-only — **first deploy** | `not-started` | 12–18h | — | **A live URL.** Pan and zoom a seeded 5,000-shape board | — | no |
@@ -108,14 +108,15 @@ The gate is met when all five hold:
 
 ## Known defects at `e61aedf` — all four verified by running them
 
-These are wrong **today**, in committed code. Phase 0 exists primarily to fix them.
+Phase 0 exists primarily to fix these. **D-1, D-2 and D-4 are fixed** in the commit that
+added this line; D-3 remains open.
 
-| ID | Defect | Evidence |
-|---|---|---|
-| **D-1** | The CI convergence step is **red**. `pnpm vitest run --project harness` exits `1` ("No test files found") while `pnpm verify` exits `0`, because `pnpm test` runs all projects and tolerates an empty one. A single aggregate gate hid a broken itemised step. | Ran both at `e61aedf` |
-| **D-2** | **README overclaims.** It advertises "layered canvases, a spatial index, `Path2D` and bitmap caches, LOD by zoom" and a relay with "transport, permission gate, room, persistence". Only the spatial index exists; `apps/relay/src/` is **empty**. | `README.md:9-11,31` vs `ls apps/relay/src` |
-| **D-3** | **Evidence is unreachable.** `bench-out/` is gitignored, and `arch:graph` writes into a directory that does not exist. Any published number routed there is unverifiable by a reviewer. | `.gitignore:20`, `package.json:17` |
-| **D-4** | `packages/harness` has no tests and nothing imports it, so `pnpm arch` warns `no-orphans` on it every run — a permanently-yellow gate that trains everyone to ignore warnings. | `pnpm arch` |
+| ID | Defect | Status | Evidence |
+|---|---|---|---|
+| **D-1** | The CI convergence step was **red**: `pnpm vitest run --project harness` exited `1` ("No test files found") while `pnpm verify` exited `0`, because `pnpm test` tolerates an empty project and `--project <name>` does not. A single aggregate gate hid a broken itemised step. | **fixed** | `packages/harness/src/yjs-resolution.test.ts` — 2 tests; plus `pnpm verify` added as one CI step so the two gates cannot diverge again |
+| **D-2** | **README overclaimed**: it advertised "layered canvases, `Path2D` and bitmap caches, LOD by zoom" and a relay with "persistence". Only the spatial index existed; `apps/relay/src/` is empty. | **fixed** | README rewritten with an explicit pre-alpha Status section separating built from planned; every claim audited against the tree |
+| **D-3** | **Evidence is unreachable.** `bench-out/` is gitignored, and `arch:graph` writes into a directory that does not exist. Any published number routed there is unverifiable by a reviewer. | **open** | `.gitignore:20`, `package.json:17` |
+| **D-4** | `packages/harness` had no tests and nothing imported it, so `pnpm arch` warned `no-orphans` every run — a permanently-yellow gate that trains everyone to ignore warnings. | **fixed** | `harness/src/index.ts` now re-exports `checkYjsResolution`; `pnpm arch` reports zero violations **and zero warnings** for the first time |
 
 ---
 
@@ -123,7 +124,7 @@ These are wrong **today**, in committed code. Phase 0 exists primarily to fix th
 
 | Field | Value |
 |---|---|
-| **Status** | `not-started` |
+| **Status** | `in-progress` — D-1, D-2, D-4 done; D-3, benches, irreversibles and the worker spike remain |
 | Started / Closed | — / — |
 | Estimate / Actual / Unplanned | 3–5h / — / — |
 | Makes true | Every claim in the repo is either true or removed, every CI step is individually green, and the three non-retrofittable decisions are constants in code rather than sentences in prose. |
@@ -136,13 +137,16 @@ These are wrong **today**, in committed code. Phase 0 exists primarily to fix th
 | Write-up delta | `docs/COMPARISON.md` created as an append-only file with its first paragraph. |
 
 **Tasks**
-- [ ] Fix **D-1**: seed `packages/harness` with a real test, add `pnpm verify` as a single CI
+- [x] Fix **D-1**: seed `packages/harness` with a real test, add `pnpm verify` as a single CI
       step so local and CI cannot diverge again, and keep the itemised steps listed separately.
-- [ ] Fix **D-2**: rewrite README to describe what is built, with a separate "Planned" section.
+      *Done: the seeded test checks invariant 2 at a third Yjs resolution point, which neither
+      the tree walk nor the in-graph guard reaches.*
+- [x] Fix **D-2**: rewrite README to describe what is built, with a separate "Planned" section.
+      *Done: also added the missing `LICENSE`, and audited every README claim against the tree.*
 - [ ] Fix **D-3**: decide the evidence-path policy **once** — commit
       `bench/expectations/*.json` and generate `docs/measurements.md` from runs — and create
       `bench-out/` so `arch:graph` stops assuming it.
-- [ ] Fix **D-4**: `no-orphans` on `packages/harness` resolved, not silenced.
+- [x] Fix **D-4**: `no-orphans` on `packages/harness` resolved, not silenced.
 - [ ] Salvage the 8 bench scripts (`crit1 crit2 crit3 cold types mig1 mig3 dbg2`) into
       `bench/` and wire `packages/harness/src/measure.ts`, which `pnpm bench` already points
       at and which does not exist. **These scripts already exist — this is salvage, not
