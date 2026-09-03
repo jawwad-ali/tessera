@@ -217,7 +217,7 @@ evening. That argument is the point of doing this first rather than at week eigh
 | ID | Criterion | Kind | Verifier | ✓ |
 |---|---|---|---|---|
 | 1.C1 | A table-driven test feeds `resolveShape` **every** hazard in invariant 6 and asserts per row: never throws, reports the named `Quirk.reason`, and `shape` is undefined only for unrenderable input | command | `vitest run --project core -t resolveShape` | ☐ |
-| 1.C2 | Staging 300 transform frames in one gesture gives `opCount === 1`; three shapes gives 3; **doubling to 600 frames changes neither** — frame-count independence as a test, not a claim | command | `vitest run --project core -t opCount` | ☐ |
+| 1.C2 | Staging 300 transform frames in one gesture gives `opCount === 1`; three shapes gives 3; **doubling to 600 frames changes neither** — frame-count independence as a test, not a claim | command | `vitest run --project core -t opCount` | ☐☑ |
 | 1.C3 | A drag returning to its origin gives `committed: false`, `opCount: 0`, and no undo entry | command | `vitest run --project core -t "round trip"` | ☐ |
 | 1.C4 | `checkPatch` returns a violation for a hand-written two-hot-key command and for a removal-shaped op, and `[]` for all five real commands | command | `vitest run --project core -t checkPatch` | ☐ |
 | 1.C5 | Negative tests pass: retaining a `DirtyView` past its notification throws; a listener calling `gesture` throws | command | `vitest run --project core -t revoked` | ☐ |

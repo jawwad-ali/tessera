@@ -1,5 +1,5 @@
 import type { Command, RejectReason } from '../commands/command.ts';
-import type { Shape, ShapeId } from '../schema/shape.ts';
+import type { Shape, ShapeId, ShapeKey } from '../schema/shape.ts';
 import type {
   GestureResult,
   GestureTx,
@@ -52,36 +52,37 @@ const notYet = (member: string, demandedBy: string): never => {
   throw new Error(`MemoryStore.${member} is not implemented yet — demanded by ${demandedBy}`);
 };
 
+/** What a staged command reports back. Refusal is a return value; a refused frame is normal. */
+type ApplyOutcome = { readonly ok: true } | { readonly ok: false; readonly reason: RejectReason };
+
+/** One shape's staged state within a single gesture. */
+interface Staged {
+  /** The value as staged, so a read mid-gesture composes against the gesture's own effects. */
+  readonly shape: Shape;
+  /**
+   * True when this gesture created the shape. A create is one whole-container `put`, so it
+   * costs one write however many keys the rest of the gesture goes on to touch.
+   */
+  readonly created: boolean;
+  /** Distinct keys written by `set` ops. One write per surviving key. */
+  readonly keys: ReadonlySet<ShapeKey>;
+}
+
+/**
+ * Writes a gesture actually emits, after per-`(shape, key)` collapse.
+ *
+ * Neither term mentions the frame count, which is the entire point: a 300-frame drag and a
+ * 600-frame drag are the same single write. Counting per frame instead would mean a board
+ * gets slower to load with every gesture anyone has ever made on it.
+ */
+const countOps = (staged: ReadonlyMap<ShapeId, Staged>): number => {
+  let ops = 0;
+  for (const entry of staged.values()) ops += entry.created ? 1 : entry.keys.size;
+  return ops;
+};
+
 export const createMemoryStore = (options: MemoryStoreOptions): SceneStore => {
   const shapes = new Map<ShapeId, Shape>();
-
-  /**
-   * Apply one command, returning how many shapes it wrote.
-   *
-   * A create is **one** write, not one per field: at the document boundary it is a single
-   * whole-map `put` at the root key, which is what makes two clients creating the same id
-   * converge on one shape rather than a mixture of both.
-   */
-  const applyCommand = (
-    command: Command,
-  ): { readonly ok: true; readonly writes: number } | { readonly ok: false; readonly reason: RejectReason } => {
-    switch (command.kind) {
-      case 'create': {
-        const { draft } = command;
-        // The stamp is the store's, not the caller's. `author` and `v` are added here and
-        // nowhere else.
-        shapes.set(draft.id, { ...draft, author: options.author, v: SCHEMA_VERSION });
-        return { ok: true, writes: 1 };
-      }
-      case 'transform':
-      case 'restyle':
-      case 'reorder':
-      case 'delete':
-        return notYet(`apply(${command.kind})`, 'the next red in PHASES.md Phase 1');
-      default:
-        return notYet('apply', 'an unhandled command kind');
-    }
-  };
 
   return {
     get: (id) => shapes.get(id),
@@ -99,16 +100,54 @@ export const createMemoryStore = (options: MemoryStoreOptions): SceneStore => {
     query: () => notYet('query', 'the first culling test'),
 
     gesture: <T>(body: (tx: GestureTx) => T): GestureResult<T> => {
-      let writes = 0;
+      const staged = new Map<ShapeId, Staged>();
+
+      /** The scene as this gesture has left it so far, falling back to what is committed. */
+      const peek = (id: ShapeId): Shape | undefined => staged.get(id)?.shape ?? shapes.get(id);
+
+      const stage = (shape: Shape, key: ShapeKey): void => {
+        const previous = staged.get(shape.id);
+        staged.set(shape.id, {
+          shape,
+          created: previous?.created ?? false,
+          keys: new Set(previous === undefined ? [key] : [...previous.keys, key]),
+        });
+      };
+
+      const applyCommand = (command: Command): ApplyOutcome => {
+        switch (command.kind) {
+          case 'create': {
+            // The stamp is the store's, not the caller's. `author` and `v` are added here and
+            // nowhere else.
+            const shape: Shape = { ...command.draft, author: options.author, v: SCHEMA_VERSION };
+            staged.set(shape.id, { shape, created: true, keys: new Set() });
+            return { ok: true };
+          }
+          case 'transform': {
+            // Every entry is resolved before anything is staged. A command reduces to one
+            // patch, so a group drag naming one stale id refuses whole rather than moving the
+            // rest of the selection and leaving the caller to guess which moved.
+            const moved: Shape[] = [];
+            for (const entry of command.entries) {
+              const current = peek(entry.id);
+              if (current === undefined) return { ok: false, reason: 'unknown-shape' };
+              moved.push({ ...current, t: entry.t });
+            }
+            for (const shape of moved) stage(shape, 't');
+            return { ok: true };
+          }
+          case 'restyle':
+          case 'reorder':
+          case 'delete':
+            return notYet(`apply(${command.kind})`, 'the next red in PHASES.md Phase 1');
+          default:
+            return notYet('apply', 'an unhandled command kind');
+        }
+      };
 
       const tx: GestureTx = {
-        apply: (command) => {
-          const outcome = applyCommand(command);
-          if (!outcome.ok) return { ok: false, reason: outcome.reason };
-          writes += outcome.writes;
-          return { ok: true };
-        },
-        peek: (id) => shapes.get(id),
+        apply: applyCommand,
+        peek,
         // Untested, so unimplemented. An earlier draft tracked an `aborted` flag and lint
         // objected that both branches reading it were constant — which was a fair signal
         // rather than noise: nothing exercises the abort path, so the flag was decoration
@@ -117,7 +156,11 @@ export const createMemoryStore = (options: MemoryStoreOptions): SceneStore => {
       };
 
       const value = body(tx);
-      return { value, committed: writes > 0, opCount: writes };
+
+      const opCount = countOps(staged);
+      for (const entry of staged.values()) shapes.set(entry.shape.id, entry.shape);
+
+      return { value, committed: opCount > 0, opCount };
     },
 
     subscribe: (): Unsubscribe => notYet('subscribe', 'the first dirty-notification test'),
