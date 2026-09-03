@@ -26,9 +26,9 @@ const rectDraft = (id: string, idx: string): ShapeDraft => ({
   } as unknown as Style,
 });
 
-/** The same rectangle, moved. One frame of a drag. */
-const at = (x: number, y: number): Transform =>
-  ({ x, y, w: 10, h: 10, rot: 0 }) as unknown as Transform;
+/** The same rectangle, moved and optionally turned. One frame of a drag. */
+const at = (x: number, y: number, rot = 0): Transform =>
+  ({ x, y, w: 10, h: 10, rot }) as unknown as Transform;
 
 /**
  * One shape dragged for `frames` pointermove events, as a fresh board would see it.
@@ -181,5 +181,82 @@ group('opCount', () => {
     expect(result.committed).toBe(false);
     expect(result.opCount).toBe(0);
     expect(store.has('ghost' as ShapeId)).toBe(false);
+  });
+});
+
+group('round trip', () => {
+  it('a drag that ends where it began writes nothing', () => {
+    const store = createMemoryStore({ author: 'u1', now: () => 0 });
+    const id = 's1' as ShapeId;
+    store.gesture((tx) => tx.apply({ kind: 'create', draft: rectDraft(id, 'a0') }));
+
+    const before = store.get(id);
+    expect(before).toBeDefined();
+
+    const drag = store.gesture((tx) => {
+      for (let frame = 1; frame < DRAG_FRAMES; frame++) {
+        tx.apply({ kind: 'transform', entries: [{ id, t: at(frame, frame) }] });
+      }
+      // Dropped back on the spot it was picked up from — the user changed their mind.
+      tx.apply({ kind: 'transform', entries: [{ id, t: at(0, 0) }] });
+    });
+
+    // Suppressing this is not an optimisation. Without it every cancelled drag leaves a
+    // struct on the wire and a Ctrl+Z that visibly does nothing.
+    expect(drag.committed).toBe(false);
+    expect(drag.opCount).toBe(0);
+    // Not merely equal — the committed shape was never replaced.
+    expect(store.get(id)).toBe(before);
+  });
+
+  it('a rotation that returns to -0 is not a change', () => {
+    const store = createMemoryStore({ author: 'u1', now: () => 0 });
+    const id = 's1' as ShapeId;
+    store.gesture((tx) => tx.apply({ kind: 'create', draft: rectDraft(id, 'a0') }));
+
+    const turn = store.gesture((tx) => {
+      tx.apply({ kind: 'transform', entries: [{ id, t: at(0, 0, 1.5) }] });
+      // A full turn back. Negating an angle is how this arrives in practice, and it lands
+      // on -0 rather than 0 — the same shape on screen, and `Object.is` disagrees.
+      tx.apply({ kind: 'transform', entries: [{ id, t: at(0, 0, -0) }] });
+    });
+
+    expect(turn.committed).toBe(false);
+    expect(turn.opCount).toBe(0);
+  });
+
+  it('only the shapes that actually moved are written', () => {
+    const store = createMemoryStore({ author: 'u1', now: () => 0 });
+    const first = 's1' as ShapeId;
+    const second = 's2' as ShapeId;
+    const third = 's3' as ShapeId;
+    store.gesture((tx) => {
+      tx.apply({ kind: 'create', draft: rectDraft(first, 'a0') });
+      tx.apply({ kind: 'create', draft: rectDraft(second, 'a1') });
+      tx.apply({ kind: 'create', draft: rectDraft(third, 'a2') });
+    });
+
+    const drag = store.gesture((tx) => {
+      for (let frame = 1; frame <= DRAG_FRAMES; frame++) {
+        tx.apply({
+          kind: 'transform',
+          entries: [
+            { id: first, t: at(frame, 0) },
+            { id: second, t: at(frame, 0) },
+            { id: third, t: at(frame, 0) },
+          ],
+        });
+      }
+      // The middle one is nudged back to where it started; the others are dropped where
+      // they are. Suppression is per shape, so this gesture costs two writes, not three
+      // and not zero.
+      tx.apply({ kind: 'transform', entries: [{ id: second, t: at(0, 0) }] });
+    });
+
+    expect(drag.committed).toBe(true);
+    expect(drag.opCount).toBe(2);
+    expect(store.get(first)?.t.x).toBe(DRAG_FRAMES);
+    expect(store.get(second)?.t.x).toBe(0);
+    expect(store.get(third)?.t.x).toBe(DRAG_FRAMES);
   });
 });

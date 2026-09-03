@@ -66,7 +66,7 @@ Estimates are evening-hours. Cumulative assumes ~10–12h/week.
 | # | Phase | Status | Est | Act | A stranger sees | Evidence | Post-gate optional |
 |---|---|---|---|---|---|---|---|
 | 0 | Foundations made honest | `done` | 3–5h | ~5h | A public repo whose README describes only what exists, with a genuinely green CI badge | [repo](https://github.com/jawwad-ali/tessera) - [docs/measurements.md](./docs/measurements.md) | no |
-| 1 | Core runtime | `not-started` | 10–14h | — | *(unchanged — invisible phase, justified: nothing can be drawn or synced before the reducer exists)* | — | no |
+| 1 | Core runtime | `in-progress` 2/6 | 10–14h | ~5h | *(unchanged — invisible phase, justified: nothing can be drawn or synced before the reducer exists)* | — | no |
 | 2 | Property suite, mutation-proved | `not-started` | 8–12h | — | `harness/CAUGHT.md`: three planted bugs, seeds-to-failure, shrink lengths | — | no |
 | 3 | Renderer, read-only — **first deploy** | `not-started` | 12–18h | — | **A live URL.** Pan and zoom a seeded 5,000-shape board | — | no |
 | 4 | Input and tools | `not-started` | 12–18h | — | The same URL, now drawable: rect, pen, select, move, delete, undo | — | no |
@@ -218,7 +218,7 @@ evening. That argument is the point of doing this first rather than at week eigh
 |---|---|---|---|---|
 | 1.C1 | A table-driven test feeds `resolveShape` **every** hazard in invariant 6 and asserts per row: never throws, reports the named `Quirk.reason`, and `shape` is undefined only for unrenderable input | command | `vitest run --project core -t resolveShape` | ☐ |
 | 1.C2 | Staging 300 transform frames in one gesture gives `opCount === 1`; three shapes gives 3; **doubling to 600 frames changes neither** — frame-count independence as a test, not a claim | command | `vitest run --project core -t opCount` | ☐☑ |
-| 1.C3 | A drag returning to its origin gives `committed: false`, `opCount: 0`, and no undo entry | command | `vitest run --project core -t "round trip"` | ☐ |
+| 1.C3 | **Amended 2026-09-03.** A drag returning to its origin gives `committed: false`, `opCount: 0`, and leaves the committed shape untouched *by object identity* — plus the `-0` rotation case, which is the one value where `Object.is` and `===` disagree. "No undo entry" was not observable here: `SceneStore` declares no undo member, because the stack belongs to the caller (Phase 4) and to `Y.UndoManager` (Phase 5), and inventing one in `MemoryStore` to satisfy a checkbox is exactly the speculative code this project bans. `committed: false` is the signal a stack is pushed on, so the undo clause moves to the new `4.C5` rather than being dropped. | command | `vitest run --project core -t "round trip"` | ☑ |
 | 1.C4 | `checkPatch` returns a violation for a hand-written two-hot-key command and for a removal-shaped op, and `[]` for all five real commands | command | `vitest run --project core -t checkPatch` | ☐ |
 | 1.C5 | Negative tests pass: retaining a `DirtyView` past its notification throws; a listener calling `gesture` throws | command | `vitest run --project core -t revoked` | ☐ |
 | 1.C6 | Coverage thresholds already configured for `core` (90/85/90/90) are met | command | `pnpm vitest run --project core --coverage` | ☐ |
@@ -348,6 +348,7 @@ don't, and the deploy itself is reliably two evenings the first time.
 | 4.C2 | A test asserts a 3-second drag emits **one** transaction, not one per frame, at any frame rate | command | `vitest run --project web -t "one transaction"` | ☐ |
 | 4.C3 | Updates and bytes **per gesture** published, naive vs commit-on-pointerup, with the envelope | number | row in `docs/measurements.md` | ☐ |
 | 4.C4 | The live URL is drawable, and the ephemerality banner is visible | human | open the link | ☐ |
+| 4.C5 | A cancelled drag leaves the undo stack alone: after a round-trip drag, Ctrl+Z undoes the gesture *before* it. **Added 2026-09-03** — carries the clause moved off `1.C3`. Phase 4 promised undo in "a stranger sees" while no criterion asserted it, so this closes a real hole in the tracker rather than merely relocating a sentence. | command | `vitest run --project web -t "cancelled drag"` | ☐ |
 
 **Excludes:** Resize, rotate, ellipses, sticky notes (**D1: cut**), images, eraser, copy/paste
 beyond duplicate, export.

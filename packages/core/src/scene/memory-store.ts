@@ -69,15 +69,63 @@ interface Staged {
 }
 
 /**
- * Writes a gesture actually emits, after per-`(shape, key)` collapse.
+ * Whether one staged key still differs from what is committed.
  *
- * Neither term mentions the frame count, which is the entire point: a 300-frame drag and a
- * 600-frame drag are the same single write. Counting per frame instead would mean a board
- * gets slower to load with every gesture anyone has ever made on it.
+ * `t` is compared field by field because every frame arrives as a fresh object, so reference
+ * equality would report every drag as a change — including one that ends where it began.
+ *
+ * The fields are compared with `===`, not `Object.is`, and the difference is load-bearing for
+ * exactly one value: `Object.is(0, -0)` is false. A rotation that comes back to `-0` is the
+ * same shape on screen, and calling it a change puts a struct on the wire and a Ctrl+Z that
+ * visibly does nothing on the stack.
  */
-const countOps = (staged: ReadonlyMap<ShapeId, Staged>): number => {
+const differs = (staged: Shape, committed: Shape, key: ShapeKey): boolean => {
+  if (key !== 't') return notYet(`no-op suppression for '${key}'`, 'the restyle and reorder reds');
+  const next = staged.t;
+  const previous = committed.t;
+  return (
+    next.x !== previous.x ||
+    next.y !== previous.y ||
+    next.w !== previous.w ||
+    next.h !== previous.h ||
+    next.rot !== previous.rot
+  );
+};
+
+/**
+ * Write the staged layer through, dropping keys that did not actually change, and report how
+ * many writes that came to.
+ *
+ * The count mentions neither the frame count nor the gesture, only shapes and keys. That is
+ * the entire point: a 300-frame drag and a 600-frame drag are the same single write, and a
+ * cancelled drag is none. Counting per frame instead would mean a board gets slower to load
+ * with every gesture anyone has ever made on it.
+ */
+const commitStaged = (staged: ReadonlyMap<ShapeId, Staged>, shapes: Map<ShapeId, Shape>): number => {
   let ops = 0;
-  for (const entry of staged.values()) ops += entry.created ? 1 : entry.keys.size;
+
+  for (const entry of staged.values()) {
+    if (entry.created) {
+      shapes.set(entry.shape.id, entry.shape);
+      ops += 1;
+      continue;
+    }
+
+    const committed = shapes.get(entry.shape.id);
+    let changed = 0;
+    for (const key of entry.keys) {
+      if (committed === undefined || differs(entry.shape, committed, key)) changed += 1;
+    }
+
+    // Left untouched rather than rewritten with an equal value: a suppressed gesture must
+    // leave the scene exactly as it found it, object identity included, because that is what
+    // the renderer's dirty tracking will be comparing against.
+    if (changed === 0) continue;
+
+    shapes.set(entry.shape.id, entry.shape);
+    ops += changed;
+  }
+
   return ops;
 };
 
@@ -156,9 +204,7 @@ export const createMemoryStore = (options: MemoryStoreOptions): SceneStore => {
       };
 
       const value = body(tx);
-
-      const opCount = countOps(staged);
-      for (const entry of staged.values()) shapes.set(entry.shape.id, entry.shape);
+      const opCount = commitStaged(staged, shapes);
 
       return { value, committed: opCount > 0, opCount };
     },
