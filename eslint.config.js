@@ -12,7 +12,20 @@ import tseslint from 'typescript-eslint';
  * semantic-but-static ones live here, and the behavioural ones live in the property suite.
  */
 export default defineConfig(
-  { ignores: ['**/dist/**', '**/.next/**', '**/coverage/**', '**/bench-out/**', '**/node_modules/**'] },
+  {
+    ignores: [
+      '**/dist/**',
+      '**/.next/**',
+      '**/coverage/**',
+      '**/bench-out/**',
+      '**/node_modules/**',
+      // Salvaged measurement scripts, deliberately preserved as-is. They are the evidence
+      // that produced the [M] numbers in ARCHITECTURE.md, so reformatting them to satisfy
+      // a style rule would edit the thing under test. They are exercised by `pnpm
+      // bench:check`, which is a stronger guarantee than lint.
+      'bench/*.mjs',
+    ],
+  },
 
   tseslint.configs.strictTypeChecked,
   tseslint.configs.stylisticTypeChecked,
@@ -44,6 +57,17 @@ export default defineConfig(
       // "synced". We are not repeating that in our own code.
       '@typescript-eslint/no-floating-promises': ['error', { ignoreVoid: false }],
       '@typescript-eslint/no-misused-promises': 'error',
+
+      // Decided 2026-09-03: arrow functions everywhere. `code-quality` mandates it and the
+      // repo was inconsistent, which is the one outcome that is not defensible. Enforced
+      // here rather than left to review, because a style convention nobody can fail is a
+      // style convention that drifts.
+      'func-style': ['error', 'expression', { allowArrowFunctions: true }],
+      // Required by the above, not decoration: `const f = () => {}` followed by a line
+      // starting with `(` or `[` is parsed as a call or an index without the semicolon.
+      // A function *declaration* had no such hazard, so switching to arrows creates one.
+      '@typescript-eslint/semi': 'off',
+      semi: ['error', 'always'],
 
       '@typescript-eslint/consistent-type-imports': ['error', { fixStyle: 'inline-type-imports' }],
       '@typescript-eslint/no-explicit-any': 'error',

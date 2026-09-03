@@ -49,12 +49,12 @@ type RegistryHost = typeof globalThis & { [REGISTRY_KEY]?: Registration };
  * witness that printed the same string for both — a `typeof` shape, say — would tell an
  * operator nothing at the moment they most need to know which half of the graph to fix.
  */
-function witnessOf(Doc: typeof Y.Doc): string {
+const witnessOf = (Doc: typeof Y.Doc): string => {
   // A minified build can leave the constructor anonymous, and a nameless witness in the
   // failure message is exactly as useless as no witness at all.
   const name = Doc.name === '' ? 'anonymous' : Doc.name;
   return `${name}#${String(Doc.toString().length)}`;
-}
+};
 
 /**
  * Assert that this process holds exactly one live Yjs instance, and register ours.
@@ -68,7 +68,7 @@ function witnessOf(Doc: typeof Y.Doc): string {
  *   actionable message is strictly better than throwing `Unexpected content type` from
  *   inside a nested-type write days later.
  */
-export function assertSingleYjsInstance(): void {
+export const assertSingleYjsInstance = (): void => {
   const host = globalThis as RegistryHost;
   const existing = host[REGISTRY_KEY];
 
@@ -101,18 +101,18 @@ export function assertSingleYjsInstance(): void {
         'Run `pnpm arch` and `node scripts/check-single-yjs.ts`.',
     );
   }
-}
+};
 
 /**
  * Test seam. Clears the registration so a test can exercise both branches in one process.
  * Not exported from the package index — nothing in production has any business calling it.
  */
-export function __resetYjsInstanceRegistryForTests(): void {
+export const __resetYjsInstanceRegistryForTests = (): void => {
   // Reflect rather than `delete host[SYM]`: a computed delete is banned by lint because
   // it usually means an object is being used as a map, and this is the one case where a
   // symbol key is the point.
   Reflect.deleteProperty(globalThis, REGISTRY_KEY);
-}
+};
 
 /**
  * Test seam. Registers a *foreign* Doc constructor, simulating the second instance that a
@@ -121,7 +121,7 @@ export function __resetYjsInstanceRegistryForTests(): void {
  *
  * Not exported from the package index.
  */
-export function __registerForeignYjsForTests(foreignDoc: typeof Y.Doc): void {
+export const __registerForeignYjsForTests = (foreignDoc: typeof Y.Doc): void => {
   __resetYjsInstanceRegistryForTests();
   Object.defineProperty(globalThis, REGISTRY_KEY, {
     value: { Doc: foreignDoc, witness: witnessOf(foreignDoc) } satisfies Registration,
@@ -129,4 +129,4 @@ export function __registerForeignYjsForTests(foreignDoc: typeof Y.Doc): void {
     configurable: true,
     enumerable: false,
   });
-}
+};

@@ -321,12 +321,12 @@ export class SpatialHash {
  * never been the bottleneck in a profile — but it is the first thing to revisit if the cull
  * ever shows up in one, and the change is contained to these two functions.
  */
-function cellKey(cx: number, cy: number): string {
+const cellKey = (cx: number, cy: number): string => {
   return `${String(cx)}:${String(cy)}`;
-}
+};
 
 /** Rewrite a rect so `w` and `h` are non-negative, per the documented {@link Rect} convention. */
-function normalise(rect: Rect): Rect {
+const normalise = (rect: Rect): Rect => {
   if (rect.w >= 0 && rect.h >= 0) return rect;
   return {
     x: Math.min(rect.x, rect.x + rect.w),
@@ -334,31 +334,31 @@ function normalise(rect: Rect): Rect {
     w: Math.abs(rect.w),
     h: Math.abs(rect.h),
   };
-}
+};
 
-function sameRect(a: Rect, b: Rect): boolean {
+const sameRect = (a: Rect, b: Rect): boolean => {
   return a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
-}
+};
 
-function isFiniteRect(rect: Rect): boolean {
+const isFiniteRect = (rect: Rect): boolean => {
   return (
     Number.isFinite(rect.x) &&
     Number.isFinite(rect.y) &&
     Number.isFinite(rect.w) &&
     Number.isFinite(rect.h)
   );
-}
+};
 
 /**
  * Bulk-build an index. Marginally faster than repeated `set` because it skips the
  * already-present checks, and it is the cold-load path — so it is also the thing to chunk
  * across frames behind a first paint rather than run in one uninterruptible task.
  */
-export function buildSpatialHash(
+export const buildSpatialHash = (
   items: Iterable<Bounded>,
   options?: SpatialHashOptions,
-): SpatialHash {
+): SpatialHash => {
   const index = new SpatialHash(options);
   for (const item of items) index.set(item.id, item.bounds);
   return index;
-}
+};

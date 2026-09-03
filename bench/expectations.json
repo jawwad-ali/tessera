@@ -1,0 +1,52 @@
+[
+  {
+    "id": "drag-two-keys-structs",
+    "claim": "ARCHITECTURE.md sect.2 - 60 frames writing x and y adds 12,000 structs across 200 shapes",
+    "script": "bench/crit1.mjs",
+    "extract": "per-frame 2 keys, FLOAT.*?\\(\\+(\\d+) structs",
+    "expected": 12000,
+    "tolerance": 0,
+    "unit": " structs",
+    "why": "structural: a deterministic struct count, bit-identical across runs. Any change means Item.mergeWith behaviour changed and the one-hot-key rule needs revisiting."
+  },
+  {
+    "id": "drag-one-key-structs",
+    "claim": "ARCHITECTURE.md sect.2 - the same 60 frames writing ONE transform key adds 200",
+    "script": "bench/crit1.mjs",
+    "extract": "per-frame 1 key \\{x,y\\} FLOAT.*?\\(\\+(\\d+) structs",
+    "expected": 200,
+    "tolerance": 0,
+    "unit": " structs",
+    "why": "structural, as above. This is the 60x that justifies geometry living in one key."
+  },
+  {
+    "id": "compaction-v2-ratio",
+    "claim": "ARCHITECTURE.md sect.10 - encodeStateAsUpdateV2 is 26.8x smaller than the append-only log, losslessly",
+    "script": "bench/crit3.mjs",
+    "extract": "encodeStateAsUpdateV2.*?lossless\\s+([\\d.]+)x",
+    "expected": 26.8,
+    "tolerance": 0,
+    "unit": "x",
+    "why": "structural: the simulation is deterministic and reproduced identically across two runs."
+  },
+  {
+    "id": "cold-load-50k-ms",
+    "claim": "ARCHITECTURE.md sect.7 - applyUpdate on a ~7.8MB blob is one uninterruptible task of ~2,027ms",
+    "script": "bench/cold.mjs",
+    "extract": "50000\\s*\\|\\s*\\d+\\s*\\|\\s*([\\d.]+)",
+    "expected": 2027,
+    "tolerance": 0.5,
+    "unit": "ms",
+    "why": "timing, hardware- and load-bound: measured 1837.6ms on this machine against the documented 2027ms (9.4%). The claim is the order of magnitude - that a 50k-shape board costs seconds, not milliseconds - so the tolerance is deliberately wide."
+  },
+  {
+    "id": "worker-transfer-objects-ms",
+    "claim": "Phase 0 spike - moving a 50,000-shape OBJECT scene across a worker boundary costs ~261ms",
+    "script": "bench/worker.mjs",
+    "extract": "postMessage round trip \\(objects\\)\\s+([\\d.]+)ms",
+    "expected": 261,
+    "tolerance": 0.6,
+    "unit": "ms",
+    "why": "timing, hardware-bound. The claim is the order of magnitude: an object scene costs hundreds of ms to cross, which is the same order as the decode a worker is meant to hide - so the transport must be typed arrays."
+  }
+]

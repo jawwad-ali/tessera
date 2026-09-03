@@ -93,15 +93,15 @@ export type CloseCode = (typeof CloseCode)[keyof typeof CloseCode];
  * Use it in tests to assert that a denial is actually terminal, rather than trusting that
  * the number chosen at the call site happened to fall in the right range.
  */
-export function isPermanent(code: number): boolean {
+export const isPermanent = (code: number): boolean => {
   return code >= 4400 && code < 4500;
-}
+};
 
 /**
  * Human-readable default reason. Kept short: it travels in a close frame, which is capped
  * at 123 bytes of UTF-8 by RFC 6455, and an over-long reason makes the close itself fail.
  */
-export function defaultReason(code: CloseCode): string {
+export const defaultReason = (code: CloseCode): string => {
   switch (code) {
     case CloseCode.ProtocolError:
       return 'unparseable or disallowed frame';
@@ -120,26 +120,26 @@ export function defaultReason(code: CloseCode): string {
     default:
       return 'closed';
   }
-}
+};
 
 /** RFC 6455 caps a close reason at 123 bytes. Longer, and the close frame is invalid. */
 export const MAX_CLOSE_REASON_BYTES = 123;
 
 /** UTF-8 byte cost of a single code point. */
-function byteCost(codePoint: number): 1 | 2 | 3 | 4 {
+const byteCost = (codePoint: number): 1 | 2 | 3 | 4 => {
   if (codePoint < 0x80) return 1;
   if (codePoint < 0x800) return 2;
   if (codePoint < 0x10000) return 3;
   return 4;
-}
+};
 
 /** UTF-8 length of a string, without allocating an encoder. */
-export function utf8ByteLength(text: string): number {
+export const utf8ByteLength = (text: string): number => {
   let bytes = 0;
   // `for...of` iterates code points, so a surrogate pair counts once, as 4 bytes.
   for (const character of text) bytes += byteCost(character.codePointAt(0) ?? 0);
   return bytes;
-}
+};
 
 /**
  * Truncate a reason to a valid close-frame payload, never splitting a code point.
@@ -155,7 +155,7 @@ export function utf8ByteLength(text: string): number {
  * at a character boundary *by construction*, which is stronger than encoding, slicing bytes
  * and repairing the mangled tail afterwards.
  */
-export function clampReason(reason: string): string {
+export const clampReason = (reason: string): string => {
   let bytes = 0;
   let utf16End = 0;
 
@@ -169,4 +169,4 @@ export function clampReason(reason: string): string {
   }
 
   return reason;
-}
+};

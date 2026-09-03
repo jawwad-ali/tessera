@@ -50,10 +50,10 @@ const screenPoint = (): fc.Arbitrary<Vec2> =>
   });
 
 /** Relative closeness, so tolerance scales with magnitude instead of failing at 1e6. */
-function closeTo(actual: number, expected: number, epsilon = 1e-9): boolean {
+const closeTo = (actual: number, expected: number, epsilon = 1e-9): boolean => {
   const scale = Math.max(1, Math.abs(actual), Math.abs(expected));
   return Math.abs(actual - expected) <= epsilon * scale;
-}
+};
 
 group('screen <-> world', () => {
   it('round-trips', () => {

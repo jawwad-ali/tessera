@@ -98,6 +98,19 @@ Known conflicts, already decided:
 
 ---
 
+## Style, decided
+
+**Arrow functions everywhere. No `function` keyword.** Decided 2026-09-03 after the repo
+was found inconsistent — `code-quality` mandates arrow style while the committed source used
+declarations, and inconsistency is the one outcome that is not defensible.
+
+Enforced by lint, not by review: `func-style: ['error', 'expression']`. `semi: ['error',
+'always']` rides along because it stops being cosmetic once declarations become assignments —
+`const f = () => {}` followed by a line starting with `(` parses as a call.
+
+The one exception is `bench/*.mjs`, which is eslint-ignored: those are salvaged measurement
+scripts and reformatting them would edit the evidence that produced the `[M]` numbers.
+
 ## Non-negotiables for any code change
 
 These are the invariants most easily broken by a well-intentioned edit. Full list in
@@ -120,10 +133,11 @@ ARCHITECTURE.md §11.
 ## Before you commit
 
 ```bash
-pnpm verify   # typecheck → typecheck:pure → lint → arch → test
+pnpm verify   # typecheck → typecheck:pure → lint → arch → claims:check → test
 ```
 
-All five must pass. `pnpm arch` failing is an architecture violation, not a lint nit — read
+All six must pass. `pnpm bench:check` is **not** in the gate — it runs the real measurement
+scripts and takes minutes — but it must pass before any published number changes. `pnpm arch` failing is an architecture violation, not a lint nit — read
 the rule's `comment` field, which states the measured reason it exists.
 
 Then: **update PHASES.md in the same commit.** Tick the tasks and only the exit criteria whose
@@ -137,6 +151,7 @@ was rejected and why, and what a test now prevents.
 
 ## Current state
 
-Commit `e61aedf` · 77 tests · `pnpm verify` green · **four known defects (D-1…D-4) recorded in
-PHASES.md**, including a red CI step and a README that overclaims. Phase 0 exists to fix them.
+**Phase 0 complete.** 108 tests · `pnpm verify` green · `pnpm bench:check` green across 5
+pre-registered claims · all four defects D-1…D-4 fixed. Phase 1 (resolver, reducer,
+`MemoryStore`) is next and unblocks both the renderer and the property suite.
 Check PHASES.md before starting anything.

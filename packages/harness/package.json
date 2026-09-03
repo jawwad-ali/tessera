@@ -3,13 +3,15 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Property/convergence suite, load client, measurement. Dev only — nothing depends on this.",
+  "description": "Property/convergence suite, load client, measurement. Dev only \u2014 nothing depends on this.",
   "exports": {
     ".": "./src/index.ts",
     "./*": "./src/*.ts"
   },
   "scripts": {
-    "bench": "tsx src/measure.ts"
+    "bench": "tsx src/bench-cli.ts",
+    "bench:check": "tsx src/bench-cli.ts --check",
+    "claims:check": "tsx src/claims-cli.ts"
   },
   "dependencies": {
     "@tessera/core": "workspace:*",

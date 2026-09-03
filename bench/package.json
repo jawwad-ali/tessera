@@ -1,0 +1,10 @@
+{
+  "name": "@tessera/bench",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Throwaway measurement scripts. Each reproduces one [M] claim in ARCHITECTURE.md.",
+  "devDependencies": {
+    "yjs": "13.6.32"
+  }
+}

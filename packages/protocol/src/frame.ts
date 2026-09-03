@@ -48,7 +48,7 @@ export type Frame =
  * alternative — an exception from inside a socket handler — is how the reference server
  * ends up swallowing hostile input into a `console.error` with no metric and no disconnect.
  */
-export function peek(message: Uint8Array): Frame {
+export const peek = (message: Uint8Array): Frame => {
   if (message.byteLength === 0) return { kind: 'malformed', reason: 'empty frame' };
 
   let outer: number;
@@ -112,7 +112,7 @@ export function peek(message: Uint8Array): Frame {
     default:
       return { kind: 'unknown-outer', outer };
   }
-}
+};
 
 /**
  * What the relay should do with a frame.
@@ -139,9 +139,9 @@ export type Verdict =
 
 const ALLOW: Verdict = { action: 'allow' };
 
-function deny(code: CloseCode, reason = defaultReason(code)): Verdict {
+const deny = (code: CloseCode, reason = defaultReason(code)): Verdict => {
   return { action: 'deny', code, reason };
-}
+};
 
 /**
  * Adjudicate a classified frame against a connection's facets. Pure and total.
@@ -153,7 +153,7 @@ function deny(code: CloseCode, reason = defaultReason(code)): Verdict {
  * before reaching for one: put anything a lower-privileged user may write in a separate
  * document with its own room, and the rule collapses back into two varUints.
  */
-export function adjudicate(frame: Frame, facets: Facets): Verdict {
+export const adjudicate = (frame: Frame, facets: Facets): Verdict => {
   switch (frame.kind) {
     case 'sync':
       switch (frame.step) {
@@ -216,7 +216,7 @@ export function adjudicate(frame: Frame, facets: Facets): Verdict {
       // Exhaustive above; this keeps the union honest if a member is ever added.
       return deny(CloseCode.ProtocolError, 'unclassified frame');
   }
-}
+};
 
 /**
  * A stable, low-cardinality label for metrics and logs.
@@ -225,7 +225,7 @@ export function adjudicate(frame: Frame, facets: Facets): Verdict {
  * interpolating an attacker-supplied outer type straight into one is an unbounded label set
  * — a memory leak in the metrics registry that a hostile client controls.
  */
-export function describe(frame: Frame): string {
+export const describe = (frame: Frame): string => {
   switch (frame.kind) {
     case 'sync':
       switch (frame.step) {
@@ -253,4 +253,4 @@ export function describe(frame: Frame): string {
     default:
       return 'unclassified';
   }
-}
+};

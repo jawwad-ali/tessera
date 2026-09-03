@@ -53,9 +53,9 @@ const BY_ROLE: Readonly<Record<Role, Facets>> = {
  * Resolve the role at ticket-issue time from the membership tables, never from a
  * long-lived token: roles change and tokens do not (ARCHITECTURE.md §9).
  */
-export function facetsFor(role: Role): Facets {
+export const facetsFor = (role: Role): Facets => {
   return BY_ROLE[role];
-}
+};
 
 /**
  * A connection that may do nothing at all.

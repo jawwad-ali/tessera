@@ -7,12 +7,12 @@ import { adjudicate, describe as label, peek, type Verdict } from './frame.ts';
 import { OuterMessage, SyncMessage } from './messages.ts';
 
 /** Build a frame the way y-websocket does: outer varUint, then the payload. */
-function frame(outer: number, ...rest: readonly number[]): Uint8Array {
+const frame = (outer: number, ...rest: readonly number[]): Uint8Array => {
   const encoder = encoding.createEncoder();
   encoding.writeVarUint(encoder, outer);
   for (const value of rest) encoding.writeVarUint(encoder, value);
   return encoding.toUint8Array(encoder);
-}
+};
 
 const viewer = facetsFor(Role.Viewer);
 const editor = facetsFor(Role.Editor);

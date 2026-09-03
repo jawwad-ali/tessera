@@ -21,14 +21,14 @@ import * as Y from 'yjs';
  */
 
 /** Wrap a payload the way y-websocket does: outer envelope varUint, then the payload. */
-function envelope(outer: number, writePayload: (encoder: encoding.Encoder) => void): Uint8Array {
+const envelope = (outer: number, writePayload: (encoder: encoding.Encoder) => void): Uint8Array => {
   const encoder = encoding.createEncoder();
   encoding.writeVarUint(encoder, outer);
   writePayload(encoder);
   return encoding.toUint8Array(encoder);
-}
+};
 
-function seededDoc(): Y.Doc {
+const seededDoc = (): Y.Doc => {
   const doc = new Y.Doc();
   const shapes = doc.getMap<Y.Map<unknown>>('shapes');
   doc.transact(() => {
@@ -37,7 +37,7 @@ function seededDoc(): Y.Doc {
     shape.set('t', { x: 10, y: 20, w: 80, h: 60, rot: 0 });
   }, 'test');
   return doc;
-}
+};
 
 group('the gate classifies frames the real provider emits', () => {
   it('recognises a genuine SyncStep1', () => {

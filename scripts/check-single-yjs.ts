@@ -34,7 +34,7 @@ interface Copy {
 const copies = new Map<string, Copy>();
 
 /** Read a `version` out of a package.json without trusting its shape. */
-function readVersion(packageDir: string): string | undefined {
+const readVersion = (packageDir: string): string | undefined => {
   let parsed: unknown;
   try {
     parsed = JSON.parse(readFileSync(join(packageDir, 'package.json'), 'utf8'));
@@ -44,9 +44,9 @@ function readVersion(packageDir: string): string | undefined {
   if (typeof parsed !== 'object' || parsed === null) return undefined;
   const version: unknown = (parsed as Record<string, unknown>)['version'];
   return typeof version === 'string' ? version : undefined;
-}
+};
 
-function record(dir: string): void {
+const record = (dir: string): void => {
   let real: string;
   try {
     real = realpathSync(dir);
@@ -62,10 +62,10 @@ function record(dir: string): void {
     return;
   }
   copies.set(real, { version, aliases: new Set([dir]) });
-}
+};
 
 /** Walk node_modules trees, following the pnpm virtual store, without cycling. */
-function walk(dir: string, depth = 0): void {
+const walk = (dir: string, depth = 0): void => {
   if (depth > 8) return;
   let entries;
   try {
@@ -90,7 +90,7 @@ function walk(dir: string, depth = 0): void {
       }
     }
   }
-}
+};
 
 walk('node_modules');
 for (const workspace of ['packages', 'apps']) {

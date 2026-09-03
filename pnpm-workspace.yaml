@@ -1,6 +1,9 @@
 packages:
   - 'packages/*'
   - 'apps/*'
+  # Measurement scripts are a workspace member so they can resolve yjs. pnpm does not
+  # hoist, and yjs is deliberately declared only where it is used.
+  - 'bench'
 
 # pnpm 10 blocks lifecycle scripts by default. Only these need to run one.
 onlyBuiltDependencies:

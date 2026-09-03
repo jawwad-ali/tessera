@@ -14,17 +14,19 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "arch": "depcruise packages apps --config .dependency-cruiser.cjs",
-    "arch:graph": "depcruise packages apps --config .dependency-cruiser.cjs --output-type dot | dot -T svg > bench-out/deps.svg",
+    "arch:graph": "mkdir -p bench-out && depcruise packages apps --config .dependency-cruiser.cjs --output-type dot | dot -T svg > bench-out/deps.svg",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:converge": "vitest run --project harness",
-    "verify": "pnpm typecheck && pnpm typecheck:pure && pnpm lint && pnpm arch && pnpm test",
+    "verify": "pnpm typecheck && pnpm typecheck:pure && pnpm lint && pnpm arch && pnpm claims:check && pnpm test",
     "dev": "pnpm --parallel --filter \"@tessera/web\" --filter \"@tessera/relay\" dev",
     "dev:web": "pnpm --filter @tessera/web dev",
     "dev:relay": "pnpm --filter @tessera/relay dev",
     "build": "pnpm --filter @tessera/relay build && pnpm --filter @tessera/web build",
     "bench": "pnpm --filter @tessera/harness bench",
-    "typecheck:pure": "tsc -p packages/core --noEmit && tsc -p packages/protocol --noEmit"
+    "typecheck:pure": "tsc -p packages/core --noEmit && tsc -p packages/protocol --noEmit",
+    "bench:check": "pnpm --filter @tessera/harness bench:check",
+    "claims:check": "pnpm --filter @tessera/harness claims:check"
   },
   "devDependencies": {
     "@types/node": "^26.4.1",

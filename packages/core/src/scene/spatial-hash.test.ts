@@ -31,11 +31,11 @@ const items = (maxLength = 60): fc.Arbitrary<Bounded[]> =>
   );
 
 /** The reference implementation: an O(n) scan, which is what the index has to agree with. */
-function bruteForce(all: readonly Bounded[], query: Rect): Set<string> {
+const bruteForce = (all: readonly Bounded[], query: Rect): Set<string> => {
   const found = new Set<string>();
   for (const item of all) if (rectsIntersect(item.bounds, query)) found.add(item.id);
   return found;
-}
+};
 
 group('query is a superset — the only property a cull needs', () => {
   it('never misses an intersecting item', () => {

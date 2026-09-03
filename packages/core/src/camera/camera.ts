@@ -88,10 +88,10 @@ export const IDENTITY: Mat2D = { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 };
 export const DEFAULT_CAMERA: Camera = { x: 0, y: 0, zoom: 1 };
 
 /** Clamp a zoom value into the supported range. NaN collapses to 1 rather than propagating. */
-export function clampZoom(zoom: number): number {
+export const clampZoom = (zoom: number): number => {
   if (!Number.isFinite(zoom)) return 1;
   return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
-}
+};
 
 /**
  * Board space to CSS-pixel screen space.
@@ -100,20 +100,20 @@ export function clampZoom(zoom: number): number {
  * so do the fixed-size selection handles drawn in screen space. Device pixels enter only in
  * {@link deviceMatrix}, at the single point where the canvas transform is set.
  */
-export function worldToScreen(camera: Camera, point: Vec2): Vec2 {
+export const worldToScreen = (camera: Camera, point: Vec2): Vec2 => {
   return {
     x: (point.x - camera.x) * camera.zoom,
     y: (point.y - camera.y) * camera.zoom,
   };
-}
+};
 
 /** CSS-pixel screen space to board space. Exact inverse of {@link worldToScreen}. */
-export function screenToWorld(camera: Camera, point: Vec2): Vec2 {
+export const screenToWorld = (camera: Camera, point: Vec2): Vec2 => {
   return {
     x: point.x / camera.zoom + camera.x,
     y: point.y / camera.zoom + camera.y,
   };
-}
+};
 
 /**
  * The transform to hand to `ctx.setTransform`, with device pixel ratio folded in.
@@ -123,7 +123,7 @@ export function screenToWorld(camera: Camera, point: Vec2): Vec2 {
  * at full dpr on idle is a real, measurable technique — and it only works if dpr lives in
  * one place, which is here.
  */
-export function deviceMatrix(camera: Camera, dpr: number): Mat2D {
+export const deviceMatrix = (camera: Camera, dpr: number): Mat2D => {
   const scale = camera.zoom * dpr;
   return {
     a: scale,
@@ -133,10 +133,10 @@ export function deviceMatrix(camera: Camera, dpr: number): Mat2D {
     e: -camera.x * scale,
     f: -camera.y * scale,
   };
-}
+};
 
 /** Invert an affine transform. Returns `undefined` if it is singular (zero determinant). */
-export function invert(matrix: Mat2D): Mat2D | undefined {
+export const invert = (matrix: Mat2D): Mat2D | undefined => {
   const determinant = matrix.a * matrix.d - matrix.b * matrix.c;
   if (determinant === 0 || !Number.isFinite(determinant)) return undefined;
 
@@ -153,15 +153,15 @@ export function invert(matrix: Mat2D): Mat2D | undefined {
     e: -(matrix.e * a + matrix.f * c),
     f: -(matrix.e * b + matrix.f * d),
   };
-}
+};
 
 /** Apply an affine transform to a point. */
-export function applyMatrix(matrix: Mat2D, point: Vec2): Vec2 {
+export const applyMatrix = (matrix: Mat2D, point: Vec2): Vec2 => {
   return {
     x: matrix.a * point.x + matrix.c * point.y + matrix.e,
     y: matrix.b * point.x + matrix.d * point.y + matrix.f,
   };
-}
+};
 
 /**
  * Zoom by a factor while keeping one screen point pinned to the board point beneath it.
@@ -177,7 +177,7 @@ export function applyMatrix(matrix: Mat2D, point: Vec2): Vec2 {
  * case a naive implementation gets wrong: clamping the zoom without recomputing the offset
  * pins the wrong point and the board drifts every time a user hits the zoom limit.
  */
-export function zoomAbout(camera: Camera, anchorScreen: Vec2, factor: number): Camera {
+export const zoomAbout = (camera: Camera, anchorScreen: Vec2, factor: number): Camera => {
   const zoom = clampZoom(camera.zoom * factor);
   // Derived from the effective zoom, not the requested one, so clamping cannot desync the
   // anchor.
@@ -187,10 +187,10 @@ export function zoomAbout(camera: Camera, anchorScreen: Vec2, factor: number): C
     y: anchorWorld.y - anchorScreen.y / zoom,
     zoom,
   };
-}
+};
 
 /** Set an absolute zoom while keeping a screen point pinned. */
-export function zoomToAbout(camera: Camera, anchorScreen: Vec2, targetZoom: number): Camera {
+export const zoomToAbout = (camera: Camera, anchorScreen: Vec2, targetZoom: number): Camera => {
   const zoom = clampZoom(targetZoom);
   const anchorWorld = screenToWorld(camera, anchorScreen);
   return {
@@ -198,16 +198,16 @@ export function zoomToAbout(camera: Camera, anchorScreen: Vec2, targetZoom: numb
     y: anchorWorld.y - anchorScreen.y / zoom,
     zoom,
   };
-}
+};
 
 /** Pan by a screen-space delta. Zoom-independent, so a drag tracks the pointer exactly. */
-export function panByScreen(camera: Camera, deltaScreen: Vec2): Camera {
+export const panByScreen = (camera: Camera, deltaScreen: Vec2): Camera => {
   return {
     x: camera.x - deltaScreen.x / camera.zoom,
     y: camera.y - deltaScreen.y / camera.zoom,
     zoom: camera.zoom,
   };
-}
+};
 
 /**
  * The board-space rectangle currently visible, given the viewport in CSS pixels.
@@ -216,7 +216,7 @@ export function panByScreen(camera: Camera, deltaScreen: Vec2): Camera {
  * to cover the widest stroke half-width on screen, or shapes whose geometry is offscreen
  * but whose stroke or shadow reaches into the viewport will pop in at the edges.
  */
-export function visibleWorldRect(camera: Camera, viewportCss: Vec2, padding = 0): Rect {
+export const visibleWorldRect = (camera: Camera, viewportCss: Vec2, padding = 0): Rect => {
   const w = viewportCss.x / camera.zoom;
   const h = viewportCss.y / camera.zoom;
   return {
@@ -225,7 +225,7 @@ export function visibleWorldRect(camera: Camera, viewportCss: Vec2, padding = 0)
     w: w + padding * 2,
     h: h + padding * 2,
   };
-}
+};
 
 /**
  * A camera that fits `content` inside `viewportCss` with a margin, in CSS pixels.
@@ -234,7 +234,7 @@ export function visibleWorldRect(camera: Camera, viewportCss: Vec2, padding = 0)
  * — culling removes nothing, so LOD is what carries it. Empty or degenerate content yields
  * the default camera rather than an infinity.
  */
-export function fitToContent(content: Rect, viewportCss: Vec2, marginCss = 32): Camera {
+export const fitToContent = (content: Rect, viewportCss: Vec2, marginCss = 32): Camera => {
   if (content.w <= 0 || content.h <= 0) return DEFAULT_CAMERA;
   if (viewportCss.x <= 0 || viewportCss.y <= 0) return DEFAULT_CAMERA;
 
@@ -250,22 +250,22 @@ export function fitToContent(content: Rect, viewportCss: Vec2, marginCss = 32): 
     y: content.y + content.h / 2 - boardViewH / 2,
     zoom,
   };
-}
+};
 
 /** Do two rectangles overlap? Touching edges count, which is what a cull wants. */
-export function rectsIntersect(a: Rect, b: Rect): boolean {
+export const rectsIntersect = (a: Rect, b: Rect): boolean => {
   return a.x <= b.x + b.w && b.x <= a.x + a.w && a.y <= b.y + b.h && b.y <= a.y + a.h;
-}
+};
 
 /** Is a point inside a rectangle? Edge-inclusive, matching {@link rectsIntersect}. */
-export function rectContains(rect: Rect, point: Vec2): boolean {
+export const rectContains = (rect: Rect, point: Vec2): boolean => {
   return (
     point.x >= rect.x &&
     point.x <= rect.x + rect.w &&
     point.y >= rect.y &&
     point.y <= rect.y + rect.h
   );
-}
+};
 
 /**
  * Convert a screen-space length to board units.
@@ -275,11 +275,11 @@ export function rectContains(rect: Rect, point: Vec2): boolean {
  * drawing a shape-space path under a scaled transform. Getting this backwards is why
  * hairlines become unclickable when zoomed out.
  */
-export function screenLengthToWorld(camera: Camera, cssPixels: number): number {
+export const screenLengthToWorld = (camera: Camera, cssPixels: number): number => {
   return cssPixels / camera.zoom;
-}
+};
 
 /** Are two cameras equal? Cheap gate for "does this frame need redrawing at all". */
-export function cameraEquals(a: Camera, b: Camera): boolean {
+export const cameraEquals = (a: Camera, b: Camera): boolean => {
   return a.x === b.x && a.y === b.y && a.zoom === b.zoom;
-}
+};
