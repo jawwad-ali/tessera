@@ -315,10 +315,29 @@ means that work was built on an untested resolver, and schema bugs become midnig
 
 | ID | Criterion | Kind | Verifier | ✓ |
 |---|---|---|---|---|
-| 2.C1 | `pnpm test:converge` runs ≥500 seeds in under 30s and exits 0 | command | `pnpm test:converge` | ☐ |
+| 2.C1 | `pnpm test:converge` runs ≥500 seeds in under 30s and exits 0, **and fails if either bound is missed** — the counts and elapsed time are asserted inside the suite and printed, not merely configured. Also fails if more than 30% of generated actions are wasted. **Amended 2026-09-03**, see above: the original verifier already passed and could observe neither bound. | command | `pnpm test:converge` | ☐ |
 | 2.C2 | **Three planted mutants each have a commit in history where the mutant PASSES because its invariant was deleted**: unjittered fractional index, draw order from map insertion order, a reducer writing `t` and `style` in one command | artifact | `git log --grep=mutant` | ☐ |
 | 2.C3 | Each planted mutant publishes seeds-to-first-failure, shrink length in commands, and wall-clock | number | rows in `harness/CAUGHT.md` | ☐ |
 | 2.C4 | A script fails the build if any `CAUGHT.md` row lacks a column, if a `found` row's seed is absent from the corpus, or if a `found` row's fixing commit touches only test files | command | `pnpm caught:check` | ☐ |
+
+**Pre-registered thresholds, 2026-09-03 — written before the generator existed and before
+anything was measured, per rule 3.** Each is derived from an argument, not from a reading:
+
+| Bound | Value | Why this number |
+|---|---|---|
+| Seeds per run of `test:converge` | **≥ 500** | From `2.C1`. Enforced *inside* the suite, not just configured — see the `2.C1` amendment below. |
+| Wall-clock for the whole converge run | **< 30s** | From `2.C1`. A suite slower than a coffee sip gets skipped locally, and one that gets skipped locally is one that fails in CI only. |
+| **Wasted actions** | **≤ 30%** | The stated slip risk made concrete. `wasted` = actions skipped because the scene had nothing to pick + actions refused with a `RejectReason`. 30% because the opening actions of a plan legitimately have an empty scene to pick from, and nothing else should be missing. A deliberate no-op — a drag returning to its origin — counts as *effective*, since suppression is a behaviour under test rather than a wasted action. |
+| Shapes per plan | **≤ 40** | Keeps the per-action invariant sweep O(40) so 500 seeds × ~24 actions stays inside the wall-clock budget. Larger scenes are Phase 3's cold-open measurement, not this. |
+| Actions per plan | **1–24** | Long enough to interleave draw/drag/restack/erase against a non-trivial scene; short enough that a shrunk counterexample is readable. |
+
+**`2.C1` amended, 2026-09-03 — the verifier could not see the claim.** As written the verifier
+was `pnpm test:converge`, which was already `vitest run --project harness` and already exited
+0 at the phase's start commit: it could confirm neither "≥500 seeds" nor "under 30s", so a
+reviewer running it learned nothing about either. Rule 1 says a criterion that already passes
+is rewritten. The suite now *enforces* both bounds itself and prints the seed count, the
+action count, the wasted fraction and the elapsed time, so the verifier observes what the
+criterion claims.
 
 **Excludes:** N replicas, partitions, duplicate delivery, Yjs of any kind. **Zero `found` rows
 is reported as zero** — never as a pass, never as "a finding about the generators".
