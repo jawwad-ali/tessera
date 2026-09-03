@@ -346,6 +346,26 @@ is reported as zero** — never as a pass, never as "a finding about the generat
 mostly-rejected ones is the real work; a generator that mostly trips `RejectReason` tests
 nothing.
 
+**Known defect found and fixed mid-phase, 2026-09-03 — D-5.** `camera.test.ts` had a property
+test failing **roughly one run in six**, and `pnpm verify` had therefore been passing by luck —
+including the CI runs reported green for Phases 0 and 1. Two separate faults:
+
+1. *The assertion was wrong, not the code.* The screen↔world round trip adds the camera offset
+   and subtracts it again, so the surviving error is proportional to the **offset**, while
+   `closeTo` scaled its tolerance to the **result**. A screen coordinate near zero therefore
+   got a `1e-9` tolerance while carrying an error inherited from a value of magnitude 1e6. Found
+   by exhaustive search rather than by waiting for the flake again: `cam.x 794315.487,
+   zoom 63.654, screen.x 7.0377e-8` returns `6.6693e-8`, 3.7× over tolerance. No float
+   implementation can do better, so the tolerance is now derived from the offset that did the
+   damage — 16 ulps, worst observed ratio 0.03 over 6M samples biased toward the bad region.
+2. *It was unreproducible.* 33 `fc.assert` calls across the repo, **none seeded**. A red run
+   left nothing to act on and a green run proved nothing about the one before it, which teaches
+   a team to re-run rather than to look. `vitest.setup.ts` now seeds fast-check globally for
+   every project, overridable with `TESSERA_SEED` so exploratory runs still find new things.
+
+Verified: 10 consecutive `--project core` runs and 3 consecutive full `pnpm verify` runs, zero
+failures — against 2 failures in 12 before the fix.
+
 ---
 
 ## Phase 3 — Renderer, read-only — first deploy

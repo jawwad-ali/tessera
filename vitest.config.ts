@@ -12,16 +12,20 @@ export default defineConfig({
         // The purity guarantee is worth testing, not just linting: this project runs with
         // `deps.moduleDirectories` untouched but no yjs import anywhere in the graph, so a
         // stray dependency shows up as a resolution failure here too.
-        test: { name: 'core', root: 'packages/core', environment: 'node', include: ['src/**/*.test.ts'] },
+        test: { name: 'core', root: 'packages/core', environment: 'node',
+          setupFiles: ['../../vitest.setup.ts'], include: ['src/**/*.test.ts'] },
       },
       {
-        test: { name: 'protocol', root: 'packages/protocol', environment: 'node', include: ['src/**/*.test.ts'] },
+        test: { name: 'protocol', root: 'packages/protocol', environment: 'node',
+          setupFiles: ['../../vitest.setup.ts'], include: ['src/**/*.test.ts'] },
       },
       {
-        test: { name: 'crdt', root: 'packages/crdt', environment: 'node', include: ['src/**/*.test.ts'] },
+        test: { name: 'crdt', root: 'packages/crdt', environment: 'node',
+          setupFiles: ['../../vitest.setup.ts'], include: ['src/**/*.test.ts'] },
       },
       {
-        test: { name: 'relay', root: 'apps/relay', environment: 'node', include: ['src/**/*.test.ts'] },
+        test: { name: 'relay', root: 'apps/relay', environment: 'node',
+          setupFiles: ['../../vitest.setup.ts'], include: ['src/**/*.test.ts'] },
       },
       {
         test: { name: 'web', root: 'apps/web', environment: 'jsdom', include: ['src/**/*.test.ts'] },
@@ -33,6 +37,7 @@ export default defineConfig({
           name: 'harness',
           root: 'packages/harness',
           environment: 'node',
+          setupFiles: ['../../vitest.setup.ts'],
           include: ['src/**/*.test.ts'],
           testTimeout: 120_000,
         },

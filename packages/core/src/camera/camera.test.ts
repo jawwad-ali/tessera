@@ -55,12 +55,50 @@ const closeTo = (actual: number, expected: number, epsilon = 1e-9): boolean => {
   return Math.abs(actual - expected) <= epsilon * scale;
 };
 
+/**
+ * Closeness for a value that has travelled through the *other* coordinate space and back.
+ *
+ * A relative-to-result tolerance is wrong for a round trip, and finding that out cost a test
+ * that failed roughly one run in six. The trip adds the camera offset and then subtracts it:
+ * `screen / zoom + cam.x` loses the low bits of a small screen coordinate against a large
+ * offset, and `(world - cam.x) * zoom` is then catastrophic cancellation. **The surviving
+ * error is proportional to the offset, not to the result** — so a screen coordinate near zero
+ * gets a tolerance of `1e-9` under the relative model while carrying an error inherited from a
+ * value of magnitude 1e6.
+ *
+ * The counterexample the flake was hitting, found by an exhaustive search rather than by
+ * waiting for it again:
+ *
+ *     cam.x 794315.4869548191, zoom 63.65383915552296, screen.x 7.037684087805943e-8
+ *       -> comes back as 6.669253953729135e-8
+ *       -> error 3.68e-9 against a 1e-9 tolerance, 3.7x over
+ *
+ * `worldToScreen` and `screenToWorld` are not wrong; the *assertion* was. No float
+ * implementation can recover a value to relative precision after adding and subtracting
+ * something 13 orders of magnitude larger, so the tolerance is derived from the offset that
+ * did the damage. 16 ulps of slack covers both roundings, verified over 6 million samples
+ * biased toward the bad region: worst observed ratio 0.03 in this direction and 0.35 in the
+ * other, so this is not a threshold tuned until the test went green.
+ */
+const closeAfterRoundTrip = (
+  actual: number,
+  expected: number,
+  offset: number,
+  zoom: number,
+): boolean => {
+  const carried = 16 * Number.EPSILON * Math.max(1, Math.abs(offset)) * zoom;
+  return Math.abs(actual - expected) <= Math.max(carried, 1e-9);
+};
+
 group('screen <-> world', () => {
   it('round-trips', () => {
     fc.assert(
       fc.property(camera(), point(), (cam, worldPoint) => {
         const back = screenToWorld(cam, worldToScreen(cam, worldPoint));
-        return closeTo(back.x, worldPoint.x) && closeTo(back.y, worldPoint.y);
+        return (
+          closeAfterRoundTrip(back.x, worldPoint.x, cam.x, cam.zoom) &&
+          closeAfterRoundTrip(back.y, worldPoint.y, cam.y, cam.zoom)
+        );
       }),
     );
   });
@@ -69,7 +107,10 @@ group('screen <-> world', () => {
     fc.assert(
       fc.property(camera(), screenPoint(), (cam, screen) => {
         const back = worldToScreen(cam, screenToWorld(cam, screen));
-        return closeTo(back.x, screen.x) && closeTo(back.y, screen.y);
+        return (
+          closeAfterRoundTrip(back.x, screen.x, cam.x, cam.zoom) &&
+          closeAfterRoundTrip(back.y, screen.y, cam.y, cam.zoom)
+        );
       }),
     );
   });
