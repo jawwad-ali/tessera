@@ -115,3 +115,35 @@ export {
   zoomToAbout,
 } from './camera/camera.ts';
 export type { Camera, Mat2D, Rect, Vec2 } from './camera/camera.ts';
+
+// The schema boundary: guards in, repairs out, encoding back.
+export { COORD_LIMIT, shapeCorners, transformBounds } from './schema/bounds.ts';
+export {
+  MAX_INK_LENGTH,
+  MAX_TEXT_LENGTH,
+  SCHEMA_VERSION,
+  ZERO,
+  checkFinite,
+  checkText,
+  finite,
+  isRecord,
+} from './schema/validate.ts';
+export type { Checked, ValueFault } from './schema/validate.ts';
+export { resolveShape } from './schema/migrate.ts';
+export { encodeShape, encodeStyleValue, encodeTransformValue } from './schema/encode.ts';
+export { HOT_KEYS, KEY_CLASS } from './schema/keys.ts';
+
+// The write vocabulary.
+export { COMMAND_TOUCHES, checkPatch, missingTarget, reduce, stampShape } from './commands/apply.ts';
+
+// The scene.
+export { compareDrawOrder, idxBetween } from './scene/order.ts';
+export type { Ordered } from './scene/order.ts';
+export { DIRTY_EXISTENCE, DIRTY_FLAGS, DIRTY_NONE, KEY_DIRTY, combine } from './scene/dirty.ts';
+export { createMemoryStore } from './scene/memory-store.ts';
+export type { MemoryStoreOptions } from './scene/memory-store.ts';
+export { SpatialHash } from './scene/spatial-hash.ts';
+
+// The assertions the property suite runs.
+export { checkScene } from './invariants.ts';
+export type { InvariantName, Violation } from './invariants.ts';

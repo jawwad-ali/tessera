@@ -35,16 +35,53 @@ const JITTER_DIGITS = DIGITS.slice(1);
  */
 const JITTER_LENGTH = 4;
 
-const jitter = (rng: Rng): string => {
+/** One digit, uniformly, from `digits`. */
+const digit = (digits: string, rng: Rng): string => {
+  const index = Math.floor(rng() * digits.length);
+  // `charAt` rather than `[]`: it returns `string` where indexing returns `string | undefined`.
+  // `rng()` is only contracted to return [0, 1), so the clamp keeps a returned 1.0 from
+  // walking off the end.
+  return digits.charAt(Math.min(index, digits.length - 1));
+};
+
+/** Jitter with no upper bound to respect: every digit is a free choice. */
+const freeJitter = (rng: Rng, length: number): string => {
   let suffix = '';
-  for (let i = 0; i < JITTER_LENGTH; i++) {
-    const index = Math.floor(rng() * JITTER_DIGITS.length);
-    // `charAt` rather than `[]`: it returns `string` where indexing returns
-    // `string | undefined`. `rng()` is only contracted to return [0, 1), so the clamp keeps
-    // a returned 1.0 from walking off the end.
-    suffix += JITTER_DIGITS.charAt(Math.min(index, JITTER_DIGITS.length - 1));
-  }
+  for (let position = 0; position < length; position++) suffix += digit(JITTER_DIGITS, rng);
   return suffix;
+};
+
+/**
+ * Jitter that is guaranteed to keep `base + suffix` strictly below `base + tail`.
+ *
+ * Called only when the generated base is a **prefix** of the upper bound, which is the case
+ * where an appended suffix can escape it. Rather than generating a suffix and hoping, this
+ * constructs one: walk the bound digit by digit, matching while there is no room below, and
+ * take a strictly-lower digit at the first position that has room. Everything after that
+ * position is free, because the comparison is already decided.
+ *
+ * It always terminates with a free choice. `fractional-indexing` rejects a key whose
+ * fractional part ends in the lowest digit, so `tail` cannot be all-lowest-digits, so some
+ * position has room.
+ */
+const jitterBelow = (tail: string, rng: Rng): string => {
+  let suffix = '';
+
+  for (const bound of tail) {
+    const ceiling = DIGITS.indexOf(bound);
+    if (ceiling <= 0) {
+      // No digit below this one. Match it and keep looking; the suffix stays a prefix of the
+      // bound, which is still strictly below it as long as it stays shorter.
+      suffix += DIGITS.charAt(0);
+      continue;
+    }
+    suffix += digit(DIGITS.slice(0, ceiling), rng);
+    return suffix + freeJitter(rng, JITTER_LENGTH - 1);
+  }
+
+  // Unreachable for a valid key, per the note above. One free digit keeps the result from
+  // ending in the lowest digit if it ever were reached.
+  return suffix + freeJitter(rng, 1);
 };
 
 /**
@@ -57,41 +94,52 @@ const jitter = (rng: Rng): string => {
  *
  * The jitter is the point. Without it two clients inserting between the same pair generate the
  * *identical* key, and the renderer is left breaking a tie that each replica may break
- * differently — which is a divergence users can see even though the document converged.
+ * differently — a divergence users can see even though the document converged.
  *
  * `rng` is injected because `Math.random` is lint-banned in this package: a failing seed in
  * the property suite has to reproduce exactly.
+ *
+ * ## Why the jitter is constructed rather than generated and checked
+ *
+ * Jitter cannot simply be appended, and finding that out cost a failing test:
+ * `generateKeyBetween('a0YEno', 'a1NGQg')` returns `'a1'`, which is a PREFIX of the upper
+ * bound, so `'a1' + 'rFqR'` sorts *above* `'a1NGQg'`. A key that escapes its neighbours is
+ * worse than an unjittered one, because it silently renders in the wrong place.
+ *
+ * The first fix for that generated a candidate, compared it against the bound, narrowed the
+ * lower bound and retried three times — then, if every attempt escaped, returned the
+ * *unjittered* key. It was documented as "correctness is unconditional; jitter is
+ * best-effort", and hammered over 240,000 insertions with zero fallbacks.
+ *
+ * **The convergence suite falsified it on its 1,492nd seed.** Repeated inserts into the same
+ * shrinking gap exhaust the retry, and the fallback is `generateKeyBetween`, which is
+ * deterministic — so two clients resolving "send to back" against the same snapshot get the
+ * *identical* key. Jitter switched itself off in precisely the case it exists for, and the
+ * 240,000-insertion hammer never saw it because those insertions were between wide neighbours.
+ *
+ * So there is no retry and no fallback now. The suffix is *constructed* to fit, which makes
+ * jitter unconditional and the ordering guarantee unchanged.
  */
 export const idxBetween = (
   before: FracIdx | undefined,
   after: FracIdx | undefined,
   rng: Rng,
 ): FracIdx => {
-  // Jitter cannot simply be appended, and finding that out cost a failing test:
-  // `generateKeyBetween('a0YEno', 'a1NGQg')` returns `'a1'`, which is a PREFIX of the upper
-  // bound, so `'a1' + 'rFqR'` = `'a1rFqR'` sorts *above* `'a1NGQg'`. A key that escapes its
-  // neighbours is worse than an unjittered one: it silently renders in the wrong place.
-  //
-  // So the candidate is verified rather than assumed. When it escapes, the base becomes the
-  // new lower bound, which strictly narrows the interval — in the case above one extra pass
-  // is enough, because `generateKeyBetween('a1', 'a1NGQg')` diverges on a digit instead of
-  // extending a prefix.
-  // Deliberately `string | null`, not `FracIdx | null`: this holds the raw keys
-  // `generateKeyBetween` returns and consumes, and only the value handed back to the caller
-  // has earned the brand.
-  let lower: string | null = before ?? null;
+  // Deliberately `string | null`, not `FracIdx | null`: these hold the raw keys
+  // `generateKeyBetween` returns and consumes, and only the value handed back has earned the
+  // brand.
+  const lower: string | null = before ?? null;
   const upper: string | null = after ?? null;
 
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const base = generateKeyBetween(lower, upper);
-    const candidate = `${base}${jitter(rng)}`;
-    if (upper === null || candidate < upper) return candidate as FracIdx;
-    lower = base;
-  }
+  const base = generateKeyBetween(lower, upper);
 
-  // Correctness is unconditional; jitter is best-effort. Returning the unjittered key keeps
-  // the ordering guarantee and costs only collision resistance, which is the right way round.
-  return generateKeyBetween(lower, upper) as FracIdx;
+  // `base > lower` strictly, and a prefix of `lower` would be *below* it, so `base` is never a
+  // prefix of the lower bound and any suffix keeps the result above it. Only the upper bound
+  // can be escaped, and only when `base` is a prefix of it.
+  const tail = upper?.startsWith(base) === true ? upper.slice(base.length) : null;
+
+  const suffix = tail === null ? freeJitter(rng, JITTER_LENGTH) : jitterBelow(tail, rng);
+  return `${base}${suffix}` as FracIdx;
 };
 
 /** The minimum a shape must expose to be drawn in order. `Shape` satisfies it. */
