@@ -431,6 +431,7 @@ target. Every later phase then *upgrades a URL that already exists* instead of p
 **Tasks**
 - [ ] Canvas host mounted `dynamic(ssr: false)`; dpr folded into the camera matrix; `ResizeObserver` with `devicePixelContentBoxSize`.
 - [ ] Two layers (static + overlay); rAF gated on a dirty flag, never unconditional.
+- [x] *Projection and culling first:* `scene/visible.ts` — the ordered, culled draw plan with device-pixel bounds, and `MemoryStore.query` backed by an incremental spatial index. The pure half of `3.C1`, so a misplaced pixel is diagnosed by a number rather than a screenshot.
 - [ ] `Path2D` cache per shape; wheel/camera with ctrl+wheel as pinch, zooming about the pointer.
 - [ ] Seeded route `/b/demo?seed=&n=` reading a fixture — no store writes.
 - [ ] Deploy to Vercel; link in the README with a one-line caption saying it is a read-only renderer demo.

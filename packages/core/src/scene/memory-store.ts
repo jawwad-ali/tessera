@@ -14,7 +14,9 @@ import type {
 } from './store.ts';
 import { missingTarget, stampShape } from '../commands/apply.ts';
 import { DIRTY_EXISTENCE, DIRTY_NONE, KEY_DIRTY, combine } from './dirty.ts';
+import { SpatialHash } from './spatial-hash.ts';
 import { compareDrawOrder } from './order.ts';
+import { transformBounds } from '../schema/bounds.ts';
 
 /**
  * The single-player scene store.
@@ -136,7 +138,11 @@ interface Committed {
   readonly mask: DirtyMask;
 }
 
-const commitStaged = (staged: ReadonlyMap<ShapeId, Staged>, shapes: Map<ShapeId, Shape>): Committed => {
+const commitStaged = (
+  staged: ReadonlyMap<ShapeId, Staged>,
+  shapes: Map<ShapeId, Shape>,
+  index: SpatialHash,
+): Committed => {
   let ops = 0;
   let mask = DIRTY_NONE;
   const ids = new Set<ShapeId>();
@@ -147,6 +153,7 @@ const commitStaged = (staged: ReadonlyMap<ShapeId, Staged>, shapes: Map<ShapeId,
       // was never committed, so it nets to zero writes and zero repaints — the same rule as a
       // drag that ends where it began, applied to existence instead of geometry.
       if (!shapes.delete(entry.id)) continue;
+      index.delete(entry.id);
       ops += 1;
       ids.add(entry.id);
       mask = combine(mask, DIRTY_EXISTENCE);
@@ -155,6 +162,7 @@ const commitStaged = (staged: ReadonlyMap<ShapeId, Staged>, shapes: Map<ShapeId,
 
     if (entry.created) {
       shapes.set(entry.shape.id, entry.shape);
+      index.set(entry.shape.id, transformBounds(entry.shape.t));
       ops += 1;
       ids.add(entry.shape.id);
       mask = combine(mask, DIRTY_EXISTENCE);
@@ -178,6 +186,10 @@ const commitStaged = (staged: ReadonlyMap<ShapeId, Staged>, shapes: Map<ShapeId,
     if (changed === 0) continue;
 
     shapes.set(entry.shape.id, entry.shape);
+    // Re-indexed on every surviving write, not only on a geometry write. A restyle cannot
+    // move a shape, but keying the update off the mask would make the index depend on the
+    // dirty table being right about every key, and the index is what culling trusts.
+    index.set(entry.shape.id, transformBounds(entry.shape.t));
     ops += changed;
     ids.add(entry.shape.id);
     mask = combine(mask, entryMask);
@@ -236,6 +248,14 @@ const revocableView = (
 
 export const createMemoryStore = (options: MemoryStoreOptions): SceneStore => {
   const shapes = new Map<ShapeId, Shape>();
+  /**
+   * The cull index, kept in step with `shapes` rather than rebuilt.
+   *
+   * A rebuild per frame is O(n) in the whole board, which is the cost culling exists to
+   * avoid; a rebuild per gesture is O(n) on every drag. Incremental is the only version that
+   * makes the query worth making.
+   */
+  const index = new SpatialHash<ShapeId>();
   const listeners = new Set<DirtyListener>();
   let gestures = 0;
   let notifying = false;
@@ -277,7 +297,14 @@ export const createMemoryStore = (options: MemoryStoreOptions): SceneStore => {
      */
     drawOrder: () => [...shapes.values()].sort(compareDrawOrder),
 
-    query: () => notYet('query', 'the first culling test'),
+    /**
+     * Candidate ids intersecting a board-space rect — a **superset**, as the contract says.
+     *
+     * The hash's cells are coarse, so a candidate can miss the rect entirely. Narrowing is
+     * the caller's job and `visibleShapes` does it; a caller that trusts this list paints
+     * shapes that produce no pixels.
+     */
+    query: (rect) => index.query(rect),
 
     gesture: <T>(body: (tx: GestureTx) => T): GestureResult<T> => {
       if (notifying) {
@@ -401,7 +428,7 @@ export const createMemoryStore = (options: MemoryStoreOptions): SceneStore => {
       };
 
       const value = body(tx);
-      const { ops, ids, mask } = commitStaged(staged, shapes);
+      const { ops, ids, mask } = commitStaged(staged, shapes, index);
 
       gestures += 1;
       if (ops > 0) notify(mask, ids, { kind: 'local-gesture', gestureId: `g${gestures}` });

@@ -32,8 +32,8 @@ import { rectsIntersect, type Rect } from '../camera/camera.ts';
  */
 
 /** Anything with an id and bounds can live in the index — deliberately not `Shape`. */
-export interface Bounded {
-  readonly id: string;
+export interface Bounded<Id extends string = string> {
+  readonly id: Id;
   readonly bounds: Rect;
 }
 
@@ -85,17 +85,17 @@ export interface SpatialHashOptions {
   readonly maxQueryCells?: number;
 }
 
-export class SpatialHash {
+export class SpatialHash<Id extends string = string> {
   readonly #cellSize: number;
   readonly #maxCellsPerItem: number;
   readonly #maxQueryCells: number;
 
   /** cell key -> ids in that cell. */
-  readonly #cells = new Map<string, Set<string>>();
+  readonly #cells = new Map<string, Set<Id>>();
   /** id -> where it is filed, so `update` and `remove` need no search. */
-  readonly #entries = new Map<string, Entry>();
+  readonly #entries = new Map<Id, Entry>();
   /** Items too large for the grid, scanned linearly. Expected to stay small. */
-  readonly #oversized = new Map<string, Rect>();
+  readonly #oversized = new Map<Id, Rect>();
 
   constructor(options: SpatialHashOptions = {}) {
     const cellSize = options.cellSize ?? DEFAULT_CELL_SIZE;
@@ -122,7 +122,7 @@ export class SpatialHash {
    * Idempotent, and correct when called with new bounds for an id already present — which
    * is the hot path, since it is what a drag does on every commit.
    */
-  set(id: string, bounds: Rect): void {
+  set(id: Id, bounds: Rect): void {
     const existing = this.#entries.get(id);
     if (existing) {
       // Nothing to do if it has not actually moved. Worth the four comparisons: a
@@ -156,7 +156,7 @@ export class SpatialHash {
   }
 
   /** Remove an item. Returns whether it was present. */
-  delete(id: string): boolean {
+  delete(id: Id): boolean {
     const entry = this.#entries.get(id);
     if (!entry) return false;
     this.#unfile(id, entry);
@@ -164,12 +164,12 @@ export class SpatialHash {
     return true;
   }
 
-  has(id: string): boolean {
+  has(id: Id): boolean {
     return this.#entries.has(id);
   }
 
   /** The bounds an item is currently filed under. */
-  boundsOf(id: string): Rect | undefined {
+  boundsOf(id: Id): Rect | undefined {
     return this.#entries.get(id)?.bounds;
   }
 
@@ -190,14 +190,14 @@ export class SpatialHash {
    * order, and a lazy sequence that is invalidated by a concurrent `set` is a much worse
    * bug than one array allocation per frame.
    */
-  query(queryRect: Rect): string[] {
+  query(queryRect: Rect): Id[] {
     // Normalise ONCE, here. A marquee dragged up and to the left produces negative
     // extents, and `rectsIntersect` assumes the documented non-negative convention — so
     // without this a selection box works in two directions only. Normalising at the
     // boundary costs four comparisons per query; doing it inside the intersection test
     // would cost four per item, on the cull path.
     const rect = normalise(queryRect);
-    const found = new Set<string>();
+    const found = new Set<Id>();
 
     if (isFiniteRect(rect)) {
       // A grid query costs O(cells in the rect) regardless of occupancy, so a query
@@ -235,7 +235,7 @@ export class SpatialHash {
    * `slop` widens the probe and must be supplied in **board units**; convert a screen-space
    * tolerance with `screenLengthToWorld` so a hairline stays clickable when zoomed out.
    */
-  queryPoint(x: number, y: number, slop = 0): string[] {
+  queryPoint(x: number, y: number, slop = 0): Id[] {
     return this.query({ x: x - slop, y: y - slop, w: slop * 2, h: slop * 2 });
   }
 
@@ -247,14 +247,14 @@ export class SpatialHash {
    * caller who forgets that gets a hit test which reports the nearest shape in the same
    * grid cell as a hit. That mistake is easy to make and hard to see.
    */
-  queryPointExact(x: number, y: number, slop = 0): string[] {
+  queryPointExact(x: number, y: number, slop = 0): Id[] {
     return this.queryExact({ x: x - slop, y: y - slop, w: slop * 2, h: slop * 2 });
   }
 
   /** Ids whose bounds actually intersect `rect`, with the AABB reject already applied. */
-  queryExact(queryRect: Rect): string[] {
+  queryExact(queryRect: Rect): Id[] {
     const rect = normalise(queryRect);
-    const result: string[] = [];
+    const result: Id[] = [];
     for (const id of this.query(rect)) {
       const bounds = this.#entries.get(id)?.bounds;
       if (bounds && rectsIntersect(bounds, rect)) result.push(id);
@@ -267,7 +267,7 @@ export class SpatialHash {
     return this.#cells.size;
   }
 
-  #unfile(id: string, entry: Entry): void {
+  #unfile(id: Id, entry: Entry): void {
     if (entry.oversized) {
       this.#oversized.delete(id);
       return;
@@ -354,11 +354,11 @@ const isFiniteRect = (rect: Rect): boolean => {
  * already-present checks, and it is the cold-load path — so it is also the thing to chunk
  * across frames behind a first paint rather than run in one uninterruptible task.
  */
-export const buildSpatialHash = (
-  items: Iterable<Bounded>,
+export const buildSpatialHash = <Id extends string = string>(
+  items: Iterable<Bounded<Id>>,
   options?: SpatialHashOptions,
-): SpatialHash => {
-  const index = new SpatialHash(options);
+): SpatialHash<Id> => {
+  const index = new SpatialHash<Id>(options);
   for (const item of items) index.set(item.id, item.bounds);
   return index;
 };
