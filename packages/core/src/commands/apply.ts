@@ -90,22 +90,12 @@ export const reduce: Reduce = (scene, cmd, stamp) => {
       if (missing !== undefined) return { ok: false, reason: 'unknown-shape', id: missing };
       return {
         ok: true,
-        // MUTANT m3: a transform now writes `style` alongside `t`, so neither write merges
-        // and a 60-frame drag costs 120 structs instead of 2.
-        patch: cmd.entries.flatMap((entry) => [
-          {
-            op: 'set' as const,
-            id: entry.id,
-            key: 't' as const,
-            value: encodeTransformValue(entry.t),
-          },
-          {
-            op: 'set' as const,
-            id: entry.id,
-            key: 'style' as const,
-            value: { fill: '#000000', stroke: '#000000', strokeWidth: 1, opacity: 1 },
-          },
-        ]),
+        patch: cmd.entries.map((entry) => ({
+          op: 'set',
+          id: entry.id,
+          key: 't',
+          value: encodeTransformValue(entry.t),
+        })),
       };
     }
 
