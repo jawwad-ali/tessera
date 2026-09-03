@@ -46,9 +46,9 @@ const digit = (digits: string, rng: Rng): string => {
 
 /** Jitter with no upper bound to respect: every digit is a free choice. */
 const freeJitter = (rng: Rng, length: number): string => {
-  // MUTANT m1: jitter removed. Two clients inserting between the same neighbours now
-  // generate the identical key. `rng() > 2` is never true, so this always returns ''.
-  return rng() > 2 ? JITTER_DIGITS.charAt(0).repeat(length) : '';
+  let suffix = '';
+  for (let position = 0; position < length; position++) suffix += digit(JITTER_DIGITS, rng);
+  return suffix;
 };
 
 /**
@@ -67,8 +67,6 @@ const freeJitter = (rng: Rng, length: number): string => {
 const jitterBelow = (tail: string, rng: Rng): string => {
   let suffix = '';
 
-  // MUTANT m1: jitter removed here too.
-  if (tail.length >= 0) return '';
   for (const bound of tail) {
     const ceiling = DIGITS.indexOf(bound);
     if (ceiling <= 0) {

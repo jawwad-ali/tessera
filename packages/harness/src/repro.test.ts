@@ -32,7 +32,7 @@ const FOUND_1: readonly Action[] = [
 
 const FOUND_1_RNG_SEED = 23;
 
-group.skip('repro', () => {
+group('repro', () => {
   it('found-1: replays the shrunk counterexample with no violation', () => {
     const store = createMemoryStore({ author: 'u1', now: () => 0 });
     const rng = seededRng(FOUND_1_RNG_SEED);

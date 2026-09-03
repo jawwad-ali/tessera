@@ -56,7 +56,7 @@ group('a shape can be placed anywhere in the order', () => {
 });
 
 group('two clients reordering at the same spot do not collide', () => {
-  it.skip('produces different keys for the same neighbour pair', () => {
+  it('produces different keys for the same neighbour pair', () => {
     // The entire reason the index is jittered. Without it, two clients inserting between the
     // same two neighbours generate the IDENTICAL key, and the renderer then has to break a
     // tie that each replica may break differently.
