@@ -67,7 +67,7 @@ Estimates are evening-hours. Cumulative assumes ~10–12h/week.
 |---|---|---|---|---|---|---|---|
 | 0 | Foundations made honest | `done` | 3–5h | ~5h | A public repo whose README describes only what exists, with a genuinely green CI badge | [repo](https://github.com/jawwad-ali/tessera) - [docs/measurements.md](./docs/measurements.md) | no |
 | 1 | Core runtime | `done` 6/6 | 10–14h | ~6h | *(unchanged — invisible phase, justified: nothing can be drawn or synced before the reducer exists)* | [core/src](./packages/core/src) — 173 tests | no |
-| 2 | Property suite, mutation-proved | `in-progress` 0/4 | 8–12h | — | `harness/CAUGHT.md`: three planted bugs, seeds-to-failure, shrink lengths | — | no |
+| 2 | Property suite, mutation-proved | `in-progress` 1/4 | 8–12h | — | `harness/CAUGHT.md`: three planted bugs, seeds-to-failure, shrink lengths | — | no |
 | 3 | Renderer, read-only — **first deploy** | `not-started` | 12–18h | — | **A live URL.** Pan and zoom a seeded 5,000-shape board | — | no |
 | 4 | Input and tools | `not-started` | 12–18h | — | The same URL, now drawable: rect, pen, select, move, delete, undo | — | no |
 | 5 | YjsStore behind the seam | `not-started` | 10–16h | — | `?store=memory\|yjs` on the live URL; two tabs sync with the server switched off | — | no |
@@ -286,7 +286,7 @@ this phase to check itself against.
 
 | Field | Value |
 |---|---|
-| **Status** | `in-progress` 0/4 |
+| **Status** | `in-progress` 1/4 |
 | Estimate / Actual / Unplanned | 8–12h / — / 1 |
 | Makes true | The reducer and resolver are tested by generated command sequences rather than by examples, and the suite is **proved to have teeth** by three planted defects it catches. |
 | Depends on | 1 (technical) |
@@ -306,10 +306,10 @@ means that work was built on an untested resolver, and schema bugs become midnig
   (recolour to the same colour writes nothing; draw-then-delete in one gesture nets to nothing)
   and the staged-drop read (a shape deleted mid-gesture cannot then be dragged, or the `??`
   fallthrough resurrects it on commit).
-- [ ] `fast-check` generators over the real `Command` vocabulary — not synthetic data.
-- [ ] Invariants asserted at **every intermediate state**: unique ids, exactly-once draw order, no orphan parents, no `NaN` geometry.
-- [ ] Seeded, with the seed printed on failure, and a committed regression corpus at `harness/seeds/regressions.json`.
-- [ ] `harness/CAUGHT.md` with mandatory columns: seed, shrink length, corpus path, invariant fired, fixing sha, `class ∈ {planted, found}`.
+- [x] Seeded, with the seed printed on failure, and a committed regression corpus at `harness/seeds/regressions.json`.
+- [x] `harness/CAUGHT.md` with mandatory columns: seed, shrink length, corpus path, invariant fired, fixing sha, `class ∈ {planted, found}`. Gated by `pnpm caught:check`, now a step of `pnpm verify`; the checker's three refusals are unit-tested and were each demonstrated failing.
+- [x] `fast-check` generators over the real `Command` vocabulary — not synthetic data.
+- [x] Invariants asserted at **every intermediate state**: unique ids, exactly-once draw order, no orphan parents, no `NaN` geometry — plus an encode/resolve round trip.
 
 **Exit criteria**
 
@@ -318,7 +318,7 @@ means that work was built on an untested resolver, and schema bugs become midnig
 | 2.C1 | `pnpm test:converge` runs ≥500 seeds in under 30s and exits 0, **and fails if either bound is missed** — the counts and elapsed time are asserted inside the suite and printed, not merely configured. Also fails if more than 30% of generated actions are wasted. **Amended 2026-09-03**, see above: the original verifier already passed and could observe neither bound. | command | `pnpm test:converge` | ☐ |
 | 2.C2 | **Three planted mutants each have a commit in history where the mutant PASSES because its invariant was deleted**: unjittered fractional index, draw order from map insertion order, a reducer writing `t` and `style` in one command | artifact | `git log --grep=mutant` | ☐ |
 | 2.C3 | Each planted mutant publishes seeds-to-first-failure, shrink length in commands, and wall-clock | number | rows in `harness/CAUGHT.md` | ☐ |
-| 2.C4 | A script fails the build if any `CAUGHT.md` row lacks a column, if a `found` row's seed is absent from the corpus, or if a `found` row's fixing commit touches only test files | command | `pnpm caught:check` | ☐ |
+| 2.C4 | A script fails the build if any `CAUGHT.md` row lacks a column, if a `found` row's seed is absent from the corpus, or if a `found` row's fixing commit touches only test files | command | `pnpm caught:check` | ☐☑ |
 
 **Pre-registered thresholds, 2026-09-03 — written before the generator existed and before
 anything was measured, per rule 3.** Each is derived from an argument, not from a reading:

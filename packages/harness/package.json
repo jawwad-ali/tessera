@@ -12,7 +12,8 @@
     "bench": "tsx src/bench-cli.ts",
     "bench:check": "tsx src/bench-cli.ts --check",
     "claims:check": "tsx src/claims-cli.ts",
-    "mutant:probe": "tsx src/mutant-cli.ts"
+    "mutant:probe": "tsx src/mutant-cli.ts",
+    "caught:check": "tsx src/caught-cli.ts"
   },
   "dependencies": {
     "@tessera/core": "workspace:*",

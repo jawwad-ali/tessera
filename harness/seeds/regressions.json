@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "note": "Seeds that reproduced a real bug. Every `found` row in ../CAUGHT.md must appear here, or `pnpm caught:check` fails the build. `path` is fast-check's replay path and reproduces the unshrunk failure; the shrunk form of each entry is replayed directly in packages/harness/src/repro.test.ts, because a seed stops reproducing anything the moment the generator changes shape.",
+  "entries": [
+    {
+      "key": "found-1",
+      "baseSeed": 20260903,
+      "seedsToFailure": 1492,
+      "path": "1491:1:1:1:1:1:1:1:1:1:1:1:5:4:4:8:8:8:8:8:8:12:12:12:17:16:16:16:16:16:16:17:17:7:12:12:12:14:14:14:14:14:14:8:8:8:8:11:1",
+      "rngSeed": 23,
+      "invariant": "distinct-index",
+      "summary": "idxBetween fell back to the unjittered generateKeyBetween once its retries were exhausted, so two shapes sent to the same tight gap received the identical index."
+    }
+  ]
+}
