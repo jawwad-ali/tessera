@@ -346,4 +346,17 @@ export type SchemaGuarantees = [
   // Geometry is one key. If `Transform` is ever flattened onto the shape, this breaks.
   Assert<'t' extends ShapeKey ? true : false>,
   Assert<Not<'x' extends ShapeKey ? true : false>>,
+
+  // The key set and the shape fields cannot drift apart. The first fails the instant a key
+  // is added to `ShapeKey` with no field to hold it; the second the instant a field is
+  // added with no key. That direction matters most: `PatchOp.set` carries `key: ShapeKey`,
+  // so a newly declared key is writable through the whole patch pipeline immediately,
+  // while `EncodeShape` returns a `Partial` and `RawShape` makes every key optional - three
+  // green typechecks and one unvalidated field on the wire.
+  //
+  // The tuple wrap is load-bearing: a naked `Exclude<...> extends never` DISTRIBUTES over
+  // `never` and yields `never`, and `Assert<never>` compiles - so the assertion would be
+  // inert while looking correct.
+  Assert<[Exclude<ShapeKey, keyof PenShape>] extends [never] ? true : false>,
+  Assert<[Exclude<keyof PenShape, ShapeKey>] extends [never] ? true : false>,
 ];

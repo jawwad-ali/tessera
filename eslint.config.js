@@ -24,6 +24,9 @@ export default defineConfig(
       // a style rule would edit the thing under test. They are exercised by `pnpm
       // bench:check`, which is a stronger guarantee than lint.
       'bench/*.mjs',
+      // Dot-directories are tooling or scratch by convention, and nothing linted lives in
+      // one. Without this, a stray scratch directory anywhere in the tree breaks the gate.
+      '**/.*/**',
     ],
   },
 
