@@ -68,7 +68,7 @@ Estimates are evening-hours. Cumulative assumes ~10–12h/week.
 | 0 | Foundations made honest | `done` | 3–5h | ~5h | A public repo whose README describes only what exists, with a genuinely green CI badge | [repo](https://github.com/jawwad-ali/tessera) - [docs/measurements.md](./docs/measurements.md) | no |
 | 1 | Core runtime | `done` 6/6 | 10–14h | ~6h | *(unchanged — invisible phase, justified: nothing can be drawn or synced before the reducer exists)* | [core/src](./packages/core/src) — 173 tests | no |
 | 2 | Property suite, mutation-proved | `done` 4/4 | 8–12h | ~4h | `harness/CAUGHT.md`: three planted bugs **and one real one**, seeds-to-failure, shrink lengths | [harness/CAUGHT.md](./harness/CAUGHT.md) — 197 tests | no |
-| 3 | Renderer, read-only — **first deploy** | `not-started` | 12–18h | — | **A live URL.** Pan and zoom a seeded 5,000-shape board | — | no |
+| 3 | Renderer, read-only — **first deploy** | `in-progress` 0/4 | 12–18h | — | **A live URL.** Pan and zoom a seeded 5,000-shape board | — | no |
 | 4 | Input and tools | `not-started` | 12–18h | — | The same URL, now drawable: rect, pen, select, move, delete, undo | — | no |
 | 5 | YjsStore behind the seam | `not-started` | 10–16h | — | `?store=memory\|yjs` on the live URL; two tabs sync with the server switched off | — | no |
 | 6 | Relay | `not-started` | 12–18h | — | *(unchanged — invisible phase, justified: the only run of one, immediately before the gate)* | — | no |
@@ -414,7 +414,7 @@ failures — against 2 failures in 12 before the fix.
 
 | Field | Value |
 |---|---|
-| **Status** | `not-started` |
+| **Status** | `in-progress` 0/4 |
 | Estimate / Actual / Unplanned | 12–18h / — / — |
 | Makes true | **A URL exists.** Pixels appear, the camera and the store provably agree, and the pre-optimisation frame-time baseline is captured *before* any optimisation exists. |
 | Depends on | 1 (technical) · 2 (policy — could be reordered, at the cost of building on an untested reducer) |
@@ -444,8 +444,39 @@ target. Every later phase then *upgrades a URL that already exists* instead of p
 | 3.C3 | The live URL returns 200 and renders the seeded board | human | open the link *(the one human row in this phase)* | ☐ |
 | 3.C4 | **Pre-registered counterfactual, LOD OFF:** p50/p95/p99 frame time and long-frame count at zoom-to-fit, n≥30, with dpr, viewport, hardware, OS, browser and refresh rate stated, and the breaking point as *the n at which p95 crosses 16.7ms*. Committed, with its sha recorded here — this is what Phase 11 is measured against | number | row in `docs/measurements.md` | ☐ |
 
-**Pre-registered thresholds** (fill before opening): target p95 at 5,000 shapes ≤ ___ms on
-___ hardware. A bound entered after the measurement is a failed phase.
+**Pre-registered thresholds, 2026-09-03 — written before `apps/web/src` existed and before
+anything was measured.**
+
+| | |
+|---|---|
+| **Requirement** | **p95 frame time ≤ 16.7ms** at 5,000 shapes, zoom-to-fit, dpr 1 |
+| Reference hardware | Intel i5-1135G7 @ 2.40GHz (4 physical / 8 logical), Iris Xe integrated graphics, 15.7GB RAM, Windows 11 Pro 10.0.26200, Node v24.11.0, Chromium via Playwright |
+| Sample | n ≥ 30 frames, reported p50/p95/p99 and long-frame count — never a mean, never "fps" |
+| Breaking point | the n at which p95 crosses 16.7ms |
+| Build | `next build && next start`. Never `next dev` — see `3.C2` |
+
+16.7ms is one vsync at 60Hz, which is what "smooth" means; it is a **requirement**, not a
+negotiation. If the measurement misses it, the phase records a miss and Phase 11 is measured
+against the gap. Moving the number to match the result is the failure this rule exists to stop.
+
+**A prediction is registered separately, so my model is falsifiable too, not just the code.**
+Predicted p95 at 5,000 shapes, zoom-to-fit, LOD off: **~30ms** — roughly 3µs per Canvas 2D
+fill-plus-stroke on this hardware, times 10,000 operations. That is a *miss* of the requirement
+by about 1.8×, predicted in advance. If the measurement lands far from 30ms in either direction
+the model was wrong and the write-up says so; the requirement above does not move either way.
+
+**Culling is in, LOD is out, and the two interact in a way worth stating now.** ARCHITECTURE
+§7: *"culling saves nothing at zoom-to-fit, which is the first thing every user does."* So the
+spatial-hash cull does nothing for the number above, and everything for panning at working
+zoom — which is the interaction the demo actually shows. Both are measured; neither is a
+substitute for the other.
+
+**The overlay canvas is deferred to its first drawer.** ARCHITECTURE §7 ratifies two canvases,
+and nothing in this phase draws to the second one: the gesture, selection handles and remote
+cursors arrive in Phases 4 and 6. The doc's own reasoning is the argument for waiting — "budget
+deliberately … two, three at the absolute most", at ~29MB of backing store per full-viewport
+canvas at dpr 2. An empty second canvas spends that on zero pixels. Recorded here so re-adding
+it is a decision rather than a rediscovery.
 
 **Excludes:** No input, no tools, no hit testing, no LOD, no bitmap cache, no tiling. Read-only.
 
