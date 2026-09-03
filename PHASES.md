@@ -373,6 +373,21 @@ Four more findings came out of building it, none of them planned:
 
 And the one that matters most for everything already claimed: **D-5**, below.
 
+**Known defect found and fixed at close, 2026-09-03 — D-6.** `pnpm caught:check` passed
+locally and failed in CI, reporting `fixing sha 974989f touches no files, or does not exist`
+about a commit that plainly did. Cause: `actions/checkout` is depth-1 by default, and a shallow
+clone makes every sha unresolvable. Two fixes, because either alone is insufficient:
+
+- CI now fetches full history, which the gate genuinely needs.
+- The gate detects a shallow clone and says so, instead of blaming the evidence file for a
+  defect in the checkout. A gate that misidentifies its own failure is worse than one that is
+  merely strict.
+
+Reproduced with `git clone --depth 1`, which resolves the sha exactly as CI did: not at all.
+The lesson generalises past this gate — `caught:check` had been demonstrated failing on
+perturbed input *locally*, and that is not the same as demonstrated failing for the right reason
+in every environment where it runs.
+
 **Known defect found and fixed mid-phase, 2026-09-03 — D-5.** `camera.test.ts` had a property
 test failing **roughly one run in six**, and `pnpm verify` had therefore been passing by luck —
 including the CI runs reported green for Phases 0 and 1. Two separate faults:

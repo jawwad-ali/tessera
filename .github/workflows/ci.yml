@@ -14,7 +14,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      # Full history, not a shallow clone. `pnpm caught:check` asks git what each fixing
+      # commit in harness/CAUGHT.md actually touched, so a depth-1 checkout makes every sha
+      # look like it does not exist. That is exactly how this failed the first time it ran
+      # here: the gate was demonstrated failing locally on perturbed input, but never in the
+      # environment where it runs.
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v5
         with:

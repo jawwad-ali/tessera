@@ -28,8 +28,14 @@ row below only because shrinking reduced each surviving drag to a single frame. 
 `pnpm mutant:probe` rather than typed by hand, and pinned by a test for `found-1`.
 
 Each `planted` row has a commit in history where the defect **passes the whole suite**, because
-the invariant written to catch it was deleted. CI is green on all three. `git log --grep=mutant`
-lists them; the reverting commit is the `fixing sha` above, and its diff is the reproduction.
+the invariant written to catch it was deleted. `git log --grep=mutant` lists them; the reverting
+commit is the `fixing sha` above, and its diff is the reproduction.
+
+*Precisely:* `pnpm verify` — the single aggregate gate CI runs as one step — was run and was
+green at each of the three, locally. GitHub Actions triggers on the pushed ref, so it ran on the
+tip of the push rather than on each intermediate commit; claiming "CI is green on all three"
+would be claiming a run that does not exist. Anyone can produce it with
+`git checkout <sha> && pnpm verify`.
 
 | mutant | it passes here | reverted here |
 |---|---|---|
