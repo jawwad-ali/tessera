@@ -66,7 +66,7 @@ Estimates are evening-hours. Cumulative assumes ~10–12h/week.
 | # | Phase | Status | Est | Act | A stranger sees | Evidence | Post-gate optional |
 |---|---|---|---|---|---|---|---|
 | 0 | Foundations made honest | `done` | 3–5h | ~5h | A public repo whose README describes only what exists, with a genuinely green CI badge | [repo](https://github.com/jawwad-ali/tessera) - [docs/measurements.md](./docs/measurements.md) | no |
-| 1 | Core runtime | `in-progress` 4/6 | 10–14h | ~5h | *(unchanged — invisible phase, justified: nothing can be drawn or synced before the reducer exists)* | — | no |
+| 1 | Core runtime | `done` 6/6 | 10–14h | ~6h | *(unchanged — invisible phase, justified: nothing can be drawn or synced before the reducer exists)* | [core/src](./packages/core/src) — 173 tests | no |
 | 2 | Property suite, mutation-proved | `not-started` | 8–12h | — | `harness/CAUGHT.md`: three planted bugs, seeds-to-failure, shrink lengths | — | no |
 | 3 | Renderer, read-only — **first deploy** | `not-started` | 12–18h | — | **A live URL.** Pan and zoom a seeded 5,000-shape board | — | no |
 | 4 | Input and tools | `not-started` | 12–18h | — | The same URL, now drawable: rect, pen, select, move, delete, undo | — | no |
@@ -192,8 +192,8 @@ evening. That argument is the point of doing this first rather than at week eigh
 
 | Field | Value |
 |---|---|
-| **Status** | `in-progress` |
-| Estimate / Actual / Unplanned | 10–14h / ~4h so far / 1 |
+| **Status** | `done` — all six exit criteria green |
+| Estimate / Actual / Unplanned | 10–14h / ~6h / 8 |
 | Makes true | The untrusted-document boundary, the whole write vocabulary, and the store seam exist as pure total functions — so every hazard the schema claims to absorb can be shown absorbed with no Yjs, no DOM and no network. |
 | Depends on | 0 (technical) |
 | A stranger sees | *Unchanged.* **Invisible phase — justified:** nothing can be drawn or synced before the reducer exists, and it is one phase, not a run. |
@@ -215,6 +215,22 @@ evening. That argument is the point of doing this first rather than at week eigh
 - [ ] `MemoryStore` — with `GestureTx` staging, no-op suppression, `DirtyView` revocation, and runtime re-entrancy refusal.
 - [ ] `digest().bytes` **throws** in `MemoryStore` until the Yjs probe exists in Phase 5. A same-named field with different semantics across the two stores is exactly the footgun invariant 8 exists to stop.
 
+**Carried forward, 2026-09-03.** Four tasks move to a named later phase rather than being
+ticked. Every one is moved because a *test* for it belongs there, not because it was
+inconvenient here — writing any of them now would mean production code no failing test
+demanded, which is the one thing this project does not do.
+
+| Task | Moves to | Why it cannot be tested here |
+|---|---|---|
+| `invert` | 4 | Its only consumer is single-player undo, and the assertion that undo does the right thing is the `4.C5` added this phase. Phase 1's release valve already allowed `kind: 'none'` for everything but `create`. |
+| `selectionBounds` | 4 | Consumed by group transforms and marquee feedback, neither of which exists. |
+| `digest().bytes` **throws** | 5 | The footgun it guards — one field name, two meanings across the two stores — is closed *more* strictly today: `digest()` throws outright, so no caller can read a MemoryStore byte digest at all. The content probe needs a pure-JS hash (`core` has no `node:crypto` and no platform globals), and nothing until `5.C2` compares two digests, so a hash written now is a hash no test could catch being wrong. |
+| `drainFaults` | 5 | MemoryStore has no untrusted-input path: every write arrives as a typed `Command`, so there is no `Quirk` for it to produce. Faults become real when `YjsStore` resolves raw document content. |
+
+Also deferred: `MemoryStore`'s `restyle`/`reorder`/`delete` staging branches. `reduce` handles
+all five commands and `checkPatch` holds all five to their footprints — what is missing is
+only the store's staging for three of them, which Phase 4's tools demand.
+
 **Exit criteria**
 
 | ID | Criterion | Kind | Verifier | ✓ |
@@ -223,8 +239,8 @@ evening. That argument is the point of doing this first rather than at week eigh
 | 1.C2 | Staging 300 transform frames in one gesture gives `opCount === 1`; three shapes gives 3; **doubling to 600 frames changes neither** — frame-count independence as a test, not a claim | command | `vitest run --project core -t opCount` | ☐☑ |
 | 1.C3 | **Amended 2026-09-03.** A drag returning to its origin gives `committed: false`, `opCount: 0`, and leaves the committed shape untouched *by object identity* — plus the `-0` rotation case, which is the one value where `Object.is` and `===` disagree. "No undo entry" was not observable here: `SceneStore` declares no undo member, because the stack belongs to the caller (Phase 4) and to `Y.UndoManager` (Phase 5), and inventing one in `MemoryStore` to satisfy a checkbox is exactly the speculative code this project bans. `committed: false` is the signal a stack is pushed on, so the undo clause moves to the new `4.C5` rather than being dropped. | command | `vitest run --project core -t "round trip"` | ☑ |
 | 1.C4 | `checkPatch` returns a violation for a hand-written two-hot-key command and for a removal-shaped op, and `[]` for all five real commands | command | `vitest run --project core -t checkPatch` | ☐☑ |
-| 1.C5 | Negative tests pass: retaining a `DirtyView` past its notification throws; a listener calling `gesture` throws | command | `vitest run --project core -t revoked` | ☐ |
-| 1.C6 | Coverage thresholds already configured for `core` (90/85/90/90) are met. **Reading at `442dc46`+: 94.37 / 90.24 / 90.90 / 95.48 — passing, exit 0.** Left open deliberately: coverage is a property of the finished phase, and the headroom on *functions* is 0.9pp because every unimplemented `SceneStore` member is a `notYet` stub (`memory-store.ts` functions: 58.82%). One more stub tips this red, so it is re-run at phase close and not before. | command | `pnpm vitest run --project core --coverage` | ☐ |
+| 1.C5 | Negative tests pass: retaining a `DirtyView` past its notification throws; a listener calling `gesture` throws | command | `vitest run --project core -t revoked` | ☑ |
+| 1.C6 | Coverage thresholds already configured for `core` (90/85/90/90) are met. **At close: 95.05 / 89.72 / 94.49 / 96.58**, exit 0 on five consecutive runs. One earlier run reported exit 1 with every printed number above its threshold and no threshold message; five clean runs since. Recorded rather than explained — if it recurs it is a flaky verifier, which is worse than a red one. | command | `pnpm vitest run --project core --coverage` | ☑ |
 
 **Excludes:** No Yjs mapping. No generative testing — that is Phase 2. No real migration: no v0
 board exists, so the legacy branch is proven against a synthetic fixture key.
@@ -232,6 +248,29 @@ board exists, so the legacy branch is proven against a synthetic fixture key.
 **Slip risk:** `resolveShape` totality is a long tail — every value shape you think of while
 writing it adds a branch and a `Quirk` reason, and the branded `Finite`/`FracIdx` types make
 the repair path more verbose than the contract suggests.
+
+**What actually went wrong (appended at close, prediction kept above).** The prediction was
+wrong about where the cost was. `resolveShape` was the *cheapest* file in the phase — one
+table, one pass, green on the first run — because the hazard list was already written down in
+invariant 6. The cost was in three places nobody predicted:
+
+1. **Two contracts could not be implemented as written.** `CheckPatch` took `(patch, touches)`
+   and cannot use its second argument, because a patch does not carry the kind that produced
+   it. And `1.C3`'s "no undo entry" is not observable at a seam that declares no undo member.
+   The phase's stated assumption was "the contracts are implementable as written"; it is
+   killed, and both amendments are recorded in place rather than quietly worked around.
+2. **Two tests that looked like they had teeth did not.** A mutation making a draft able to
+   forge its own `author` passed all 97 tests, because the test asserting the opposite handed
+   it a draft with no `author` at all. A mutation notifying once per *write* instead of once
+   per *gesture* passed all 105, because every subscriber test wrote exactly one op. Both were
+   found by mutation testing and neither by review.
+3. **Vacuous branches.** The `put` half of the footprint rule could never fire on real input,
+   because `create` declares every key.
+
+The general lesson, and it is the one worth carrying into Phase 2: an example suite tells you
+that the code passes its tests. Only mutation testing tells you the tests would notice if it
+stopped. Phase 2 exists to make that systematic, and it now has three concrete escapes from
+this phase to check itself against.
 
 ---
 
@@ -625,7 +664,7 @@ real estimate error and the only input that makes the next estimate honest.
 | Phase | Est | Actual | Unplanned | Cumulative actual | Note |
 |---|---|---|---|---|---|
 | 0 | 3–5h | ~5h | 3 | ~5h | Unplanned: `bench/` had to become a workspace member; `func-style` is not auto-fixable so 42 declarations needed a transformer; the crdt purity boundary rejected `Buffer` in a test. |
-| 1 | 10–14h | — | — | — | — |
+| 1 | 10–14h | ~6h | 8 | ~11h | Wall-clock from the Phase 0 close commit to the Phase 1 close commit (14:24→20:35), not a timer — it includes the analysis detours. Unplanned: `transformBounds` overflow forced `COORD_LIMIT` into existence; `CheckPatch`'s signature could not use its own argument; `1.C3`'s undo clause was unobservable and needed `4.C5`; two mutation escapes (forged attribution, notify-per-write); one vacuous branch (the `put` footprint rule); `legacy-wins` turned out type-unrepresentable; `SCHEMA_VERSION` was declared twice. |
 | 2 | 8–12h | — | — | — | — |
 | 3 | 12–18h | — | — | — | — |
 | 4 | 12–18h | — | — | — | — |

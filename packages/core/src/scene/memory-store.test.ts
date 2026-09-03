@@ -1,6 +1,8 @@
 import { describe as group, expect, it } from 'vitest';
 
 import type { FracIdx, ShapeDraft, ShapeId, Style, Transform } from '../schema/shape.ts';
+import type { DirtyView } from './store.ts';
+import { DIRTY_FLAGS } from './dirty.ts';
 import { createMemoryStore } from './memory-store.ts';
 
 /**
@@ -258,5 +260,160 @@ group('round trip', () => {
     expect(store.get(first)?.t.x).toBe(DRAG_FRAMES);
     expect(store.get(second)?.t.x).toBe(0);
     expect(store.get(third)?.t.x).toBe(DRAG_FRAMES);
+  });
+});
+
+group('subscribe', () => {
+  const listen = () => {
+    const store = createMemoryStore({ author: 'u1', now: () => 0 });
+    const seen: { mask: number; ids: readonly string[]; origin: string; stalled: boolean }[] = [];
+    const stop = store.subscribe((view) => {
+      // A listener marks ids dirty and returns. There is nothing here to draw *with* — the
+      // view carries no shapes — so this is the whole of what an observer can do.
+      seen.push({
+        mask: view.mask,
+        ids: [...view.ids],
+        origin: view.origin.kind,
+        stalled: view.stalled,
+      });
+    });
+    return { store, seen, stop };
+  };
+
+  it('notifies once for a whole drag, however many frames it took', () => {
+    const { store, seen } = listen();
+    const id = 's1' as ShapeId;
+    store.gesture((tx) => tx.apply({ kind: 'create', draft: rectDraft(id, 'a0') }));
+    seen.length = 0;
+
+    store.gesture((tx) => {
+      for (let frame = 1; frame <= DRAG_FRAMES; frame++) {
+        tx.apply({ kind: 'transform', entries: [{ id, t: at(frame, 0) }] });
+      }
+    });
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]?.ids).toEqual([id]);
+    // Geometry only. A drag must not invalidate the draw order, which is the one O(n log n)
+    // rebuild in the renderer.
+    expect(seen[0]?.mask).toBe(DIRTY_FLAGS.geometry);
+    expect(seen[0]?.origin).toBe('local-gesture');
+    // Single-player: no peers, so no unintegrated structs, ever.
+    expect(seen[0]?.stalled).toBe(false);
+  });
+
+  it('notifies once for a group drag, not once per shape', () => {
+    const { store, seen } = listen();
+    const first = 's1' as ShapeId;
+    const second = 's2' as ShapeId;
+    const third = 's3' as ShapeId;
+    store.gesture((tx) => {
+      tx.apply({ kind: 'create', draft: rectDraft(first, 'a0') });
+      tx.apply({ kind: 'create', draft: rectDraft(second, 'a1') });
+      tx.apply({ kind: 'create', draft: rectDraft(third, 'a2') });
+    });
+    seen.length = 0;
+
+    store.gesture((tx) => {
+      for (let frame = 1; frame <= DRAG_FRAMES; frame++) {
+        tx.apply({
+          kind: 'transform',
+          entries: [
+            { id: first, t: at(frame, 0) },
+            { id: second, t: at(frame, 10) },
+            { id: third, t: at(frame, 20) },
+          ],
+        });
+      }
+    });
+
+    // Three writes, ONE notification. A gesture is one repaint however many shapes it
+    // touched, and the ids arrive together so the renderer marks them in one pass and draws
+    // them in one frame. Notifying per write would tear a group drag across three frames.
+    expect(seen).toHaveLength(1);
+    expect([...(seen[0]?.ids ?? [])].sort()).toEqual([first, second, third]);
+    expect(seen[0]?.mask).toBe(DIRTY_FLAGS.geometry);
+  });
+
+  it('says nothing at all when a drag is cancelled', () => {
+    const { store, seen } = listen();
+    const id = 's1' as ShapeId;
+    store.gesture((tx) => tx.apply({ kind: 'create', draft: rectDraft(id, 'a0') }));
+    seen.length = 0;
+
+    store.gesture((tx) => {
+      tx.apply({ kind: 'transform', entries: [{ id, t: at(50, 50) }] });
+      tx.apply({ kind: 'transform', entries: [{ id, t: at(0, 0) }] });
+    });
+
+    // The other half of 1.C3: a cancelled drag leaves no struct *and* no repaint.
+    expect(seen).toEqual([]);
+  });
+
+  it('reports a new shape as changing both what exists and where it sorts', () => {
+    const { store, seen } = listen();
+
+    store.gesture((tx) => tx.apply({ kind: 'create', draft: rectDraft('s1', 'a0') }));
+
+    expect(seen).toHaveLength(1);
+    // `existence` implies `order`: a create has to re-sort the scene, and the renderer needs
+    // to be told so rather than inferring it.
+    expect(seen[0]?.mask).toBe(DIRTY_FLAGS.existence | DIRTY_FLAGS.order);
+  });
+
+  it('gives each gesture its own id, so a change can be traced to one', () => {
+    const store = createMemoryStore({ author: 'u1', now: () => 0 });
+    const ids: (string | undefined)[] = [];
+    store.subscribe((view) => ids.push(view.origin.gestureId));
+
+    store.gesture((tx) => tx.apply({ kind: 'create', draft: rectDraft('s1', 'a0') }));
+    store.gesture((tx) => tx.apply({ kind: 'create', draft: rectDraft('s2', 'a1') }));
+
+    expect(ids[0]).toBeDefined();
+    expect(ids[1]).toBeDefined();
+    expect(ids[0]).not.toBe(ids[1]);
+  });
+
+  it('stops notifying once unsubscribed', () => {
+    const { store, seen, stop } = listen();
+    stop();
+
+    store.gesture((tx) => tx.apply({ kind: 'create', draft: rectDraft('s1', 'a0') }));
+
+    expect(seen).toEqual([]);
+  });
+});
+
+group('revoked', () => {
+  it('refuses to be read after its notification has returned', () => {
+    const store = createMemoryStore({ author: 'u1', now: () => 0 });
+    let escaped: DirtyView | undefined;
+    store.subscribe((view) => {
+      escaped = view;
+    });
+
+    store.gesture((tx) => tx.apply({ kind: 'create', draft: rectDraft('s1', 'a0') }));
+
+    expect(escaped).toBeDefined();
+    // Captured into a closure, or into component state, and read a frame later — by which
+    // time the next transaction has already invalidated it. Silently reading a stale
+    // snapshot is how a renderer draws a shape that has moved; this makes it loud.
+    expect(() => escaped?.mask).toThrow(/revoked/i);
+    expect(() => escaped?.ids).toThrow(/revoked/i);
+    expect(() => escaped?.origin).toThrow(/revoked/i);
+    expect(() => escaped?.stalled).toThrow(/revoked/i);
+  });
+
+  it('refuses a listener that writes back into the store', () => {
+    const store = createMemoryStore({ author: 'u1', now: () => 0 });
+    store.subscribe(() => {
+      // A listener that "fixes up" the scene in response to a change. In the Yjs store this
+      // nests one transaction inside another and puts an undo step inside an undo step.
+      store.gesture((tx) => tx.apply({ kind: 'create', draft: rectDraft('s2', 'a1') }));
+    });
+
+    expect(() =>
+      store.gesture((tx) => tx.apply({ kind: 'create', draft: rectDraft('s1', 'a0') })),
+    ).toThrow(/re-entrant/i);
   });
 });

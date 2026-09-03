@@ -1,14 +1,19 @@
 import type { Command, RejectReason, ScenePeek } from '../commands/command.ts';
 import type { Shape, ShapeId, ShapeKey } from '../schema/shape.ts';
 import type {
+  DirtyListener,
+  DirtyMask,
+  DirtyView,
   GestureResult,
   GestureTx,
+  Origin,
   SceneDigest,
   SceneFault,
   SceneStore,
   Unsubscribe,
 } from './store.ts';
 import { missingTarget, stampShape } from '../commands/apply.ts';
+import { DIRTY_EXISTENCE, DIRTY_NONE, KEY_DIRTY, combine } from './dirty.ts';
 import { compareDrawOrder } from './order.ts';
 
 /**
@@ -99,20 +104,37 @@ const differs = (staged: Shape, committed: Shape, key: ShapeKey): boolean => {
  * cancelled drag is none. Counting per frame instead would mean a board gets slower to load
  * with every gesture anyone has ever made on it.
  */
-const commitStaged = (staged: ReadonlyMap<ShapeId, Staged>, shapes: Map<ShapeId, Shape>): number => {
+interface Committed {
+  readonly ops: number;
+  /** Ids actually written, after suppression. What a listener is handed. */
+  readonly ids: ReadonlySet<ShapeId>;
+  /** OR of what the surviving writes invalidate - derived from the ops, never from the command. */
+  readonly mask: DirtyMask;
+}
+
+const commitStaged = (staged: ReadonlyMap<ShapeId, Staged>, shapes: Map<ShapeId, Shape>): Committed => {
   let ops = 0;
+  let mask = DIRTY_NONE;
+  const ids = new Set<ShapeId>();
 
   for (const entry of staged.values()) {
     if (entry.created) {
       shapes.set(entry.shape.id, entry.shape);
       ops += 1;
+      ids.add(entry.shape.id);
+      mask = combine(mask, DIRTY_EXISTENCE);
       continue;
     }
 
     const committed = shapes.get(entry.shape.id);
     let changed = 0;
+    let entryMask = DIRTY_NONE;
     for (const key of entry.keys) {
-      if (committed === undefined || differs(entry.shape, committed, key)) changed += 1;
+      if (committed !== undefined && !differs(entry.shape, committed, key)) continue;
+      changed += 1;
+      // Derived from the surviving op, never from the command that produced it. A drag that
+      // returns home must not repaint, and a command-derived mask would repaint every time.
+      entryMask = combine(entryMask, KEY_DIRTY[key]);
     }
 
     // Left untouched rather than rewritten with an equal value: a suppressed gesture must
@@ -122,13 +144,90 @@ const commitStaged = (staged: ReadonlyMap<ShapeId, Staged>, shapes: Map<ShapeId,
 
     shapes.set(entry.shape.id, entry.shape);
     ops += changed;
+    ids.add(entry.shape.id);
+    mask = combine(mask, entryMask);
   }
 
-  return ops;
+  return { ops, ids, mask };
+};
+
+/**
+ * A dirty view that stops working the moment its notification returns.
+ *
+ * Every accessor is a getter behind one flag, rather than a plain object handed out and hoped
+ * about. Retaining the view means reading a snapshot the next transaction has already
+ * invalidated, and a renderer drawing from one draws a shape where it used to be with nothing
+ * to notice. Four getters cover it because `DirtyView` has exactly four members.
+ */
+const revocableView = (
+  mask: DirtyMask,
+  ids: ReadonlySet<ShapeId>,
+  origin: Origin,
+): { readonly view: DirtyView; readonly revoke: () => void } => {
+  let live = true;
+  const read = <T>(value: () => T): T => {
+    if (!live) {
+      throw new Error(
+        'DirtyView was read after its notification returned - the view is revoked. Copy the ' +
+          'ids you need inside the listener; the snapshot behind it is already stale.',
+      );
+    }
+    return value();
+  };
+
+  return {
+    view: {
+      get mask() {
+        return read(() => mask);
+      },
+      get ids() {
+        return read(() => ids);
+      },
+      get origin() {
+        return read(() => origin);
+      },
+      get stalled() {
+        // Single-player: no peers, so this replica can never hold unintegrated structs. The
+        // field exists because the seam is shared with `YjsStore`, where it is the
+        // causally-stalled state a sync indicator has to distinguish from offline.
+        return read(() => false);
+      },
+    },
+    revoke: () => {
+      live = false;
+    },
+  };
 };
 
 export const createMemoryStore = (options: MemoryStoreOptions): SceneStore => {
   const shapes = new Map<ShapeId, Shape>();
+  const listeners = new Set<DirtyListener>();
+  let gestures = 0;
+  let notifying = false;
+
+  /**
+   * Hand every listener one revoked-on-return view.
+   *
+   * `notifying` is what makes a write from inside a listener throw. A listener that repairs
+   * the scene in response to a change nests one transaction inside another, and in `YjsStore`
+   * that puts an undo step inside an undo step - so the refusal belongs here at the seam,
+   * where both implementations inherit it, rather than in each one's transaction code.
+   */
+  const notify = (mask: DirtyMask, ids: ReadonlySet<ShapeId>, origin: Origin): void => {
+    notifying = true;
+    try {
+      for (const listener of listeners) {
+        const { view, revoke } = revocableView(mask, ids, origin);
+        try {
+          listener(view);
+        } finally {
+          revoke();
+        }
+      }
+    } finally {
+      notifying = false;
+    }
+  };
 
   return {
     get: (id) => shapes.get(id),
@@ -146,6 +245,14 @@ export const createMemoryStore = (options: MemoryStoreOptions): SceneStore => {
     query: () => notYet('query', 'the first culling test'),
 
     gesture: <T>(body: (tx: GestureTx) => T): GestureResult<T> => {
+      if (notifying) {
+        throw new Error(
+          'gesture() was called from inside a dirty notification, which is a re-entrant ' +
+            'write. A listener marks ids dirty and returns; schedule the write for after ' +
+            'the frame.',
+        );
+      }
+
       const staged = new Map<ShapeId, Staged>();
 
       /** The scene as this gesture has left it so far, falling back to what is committed. */
@@ -224,17 +331,26 @@ export const createMemoryStore = (options: MemoryStoreOptions): SceneStore => {
       };
 
       const value = body(tx);
-      const opCount = commitStaged(staged, shapes);
+      const { ops, ids, mask } = commitStaged(staged, shapes);
 
-      return { value, committed: opCount > 0, opCount };
+      gestures += 1;
+      if (ops > 0) notify(mask, ids, { kind: 'local-gesture', gestureId: `g${gestures}` });
+
+      return { value, committed: ops > 0, opCount: ops };
     },
 
-    subscribe: (): Unsubscribe => notYet('subscribe', 'the first dirty-notification test'),
+    subscribe: (listener: DirtyListener): Unsubscribe => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
 
     drainFaults: (): readonly SceneFault[] => notYet('drainFaults', 'the first resolver test'),
 
     digest: (): SceneDigest => notYet('digest', 'the Phase 5 convergence probe'),
 
-    stalled: () => notYet('stalled', 'the Phase 6 relay tests'),
+    // Single-player: no peers, so no unintegrated structs. See the note in `revocableView`.
+    stalled: () => false,
   };
 };
