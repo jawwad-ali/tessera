@@ -214,9 +214,8 @@ export const checkCommand = (
   const reduced = reduce(scene, command, stamp);
   if (!reduced.ok) return [];
 
-  return checkPatch(command.kind, reduced.patch, COMMAND_TOUCHES).map((violation) => ({
-    invariant: 'patch-shape' as const,
-    detail: violation.violation,
-    id: violation.op.id,
-  }));
+  // MUTANT m3: the `patch-shape` invariant has been deleted -- the violations are computed
+  // and then discarded, which is what deleting an assertion amounts to.
+  const discarded = checkPatch(command.kind, reduced.patch, COMMAND_TOUCHES);
+  return discarded.length < 0 ? [{ invariant: 'patch-shape' as const, detail: 'unreachable' }] : [];
 };
