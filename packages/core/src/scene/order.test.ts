@@ -166,3 +166,29 @@ group('a generated index is always strictly between its neighbours', () => {
     );
   });
 });
+
+group('a request with no answer is refused, not guessed at', () => {
+  it('refuses two neighbours that share an index', () => {
+    // Reachable in production: `compareDrawOrder` breaks ties on `id` because shapes *can*
+    // share an index, and there is no key strictly between `k` and `k`. Left to the library
+    // this throws `Error: " >= "`, which tells a crash report nothing at all.
+    expect(() => idxBetween('a0' as FracIdx, 'a0' as FracIdx, () => 0.5)).toThrow(
+      /share this index/,
+    );
+  });
+
+  it('refuses neighbours passed the wrong way round', () => {
+    // `generateKeyBetween('a1', 'a0')` does not complain — it returns `'a0V'`, which sorts
+    // BELOW its own lower bound. A key that escapes its neighbours renders in the wrong place
+    // with nothing to notice, so a crash is strictly better.
+    expect(() => idxBetween('a1' as FracIdx, 'a0' as FracIdx, () => 0.5)).toThrow(
+      /wrong way round/,
+    );
+  });
+
+  it('still answers when only one side is present', () => {
+    expect(idxBetween(undefined, undefined, () => 0.5)).toBeTruthy();
+    expect(idxBetween('a0' as FracIdx, undefined, () => 0.5) > 'a0').toBe(true);
+    expect(idxBetween(undefined, 'a0' as FracIdx, () => 0.5) < 'a0').toBe(true);
+  });
+});

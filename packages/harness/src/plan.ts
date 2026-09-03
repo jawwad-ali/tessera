@@ -218,9 +218,21 @@ const several = (order: readonly Shape[], selectors: readonly number[], want: nu
   return [...chosen.values()];
 };
 
-/** The index of the `gap`th slot in the draw order, jittered. */
-const gapIndex = (order: readonly Shape[], gap: number, rng: Rng): FracIdx =>
-  idxBetween(order[gap - 1]?.idx, order[gap]?.idx, rng);
+/**
+ * The index of the `gap`th slot in the draw order, jittered.
+ *
+ * Walks the upper neighbour forward past any shape tied with the lower one. Two shapes sharing
+ * an index leave no gap between them, so `idxBetween` refuses — and a real interaction layer
+ * has to widen exactly like this rather than crash. Without it the suite reports a *crash*
+ * where the interesting signal is an *invariant*, which is the difference between "something
+ * broke" and "two shapes were given the same position".
+ */
+const gapIndex = (order: readonly Shape[], gap: number, rng: Rng): FracIdx => {
+  const below = order[gap - 1]?.idx;
+  let above = gap;
+  while (above < order.length && order[above]?.idx === below) above += 1;
+  return idxBetween(below, order[above]?.idx, rng);
+};
 
 /**
  * Turn one action into the commands it emits, against the scene as it stands.

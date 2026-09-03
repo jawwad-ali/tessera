@@ -131,6 +131,27 @@ export const idxBetween = (
   const lower: string | null = before ?? null;
   const upper: string | null = after ?? null;
 
+  // Refused legibly rather than left to the library, which throws `Error: " >= "` — a message
+  // that tells a crash report nothing. Both halves are reachable:
+  //
+  //  - **A tie.** `compareDrawOrder` breaks ties on `id` precisely because two shapes *can*
+  //    share an index, and there is provably no key strictly between `k` and `k`. So the next
+  //    insert between two tied shapes crashes, and the caller has to widen past the tie —
+  //    which the message says.
+  //  - **Inverted bounds.** `generateKeyBetween('a1', 'a0')` does not complain, it returns
+  //    `'a0V'`, which sorts *below* its own lower bound. A key that escapes its neighbours
+  //    renders in the wrong place with nothing to notice, which is the same failure the jitter
+  //    bug had. A crash is strictly better than that.
+  if (lower !== null && upper !== null && lower >= upper) {
+    throw new RangeError(
+      `idxBetween needs a strictly increasing pair and got ${lower} >= ${upper}. ` +
+        (lower === upper
+          ? 'Two shapes share this index, so there is no gap between them — widen the ' +
+            'neighbours past the tie before asking for a key.'
+          : 'The neighbours are the wrong way round.'),
+    );
+  }
+
   const base = generateKeyBetween(lower, upper);
 
   // `base > lower` strictly, and a prefix of `lower` would be *below* it, so `base` is never a
