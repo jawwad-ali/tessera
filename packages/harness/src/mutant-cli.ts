@@ -1,7 +1,7 @@
 import fc from 'fast-check';
 
 import type { ShapeId } from '@tessera/core';
-import { checkScene, createMemoryStore } from '@tessera/core';
+import { checkCommand, checkScene, createMemoryStore } from '@tessera/core';
 import type { Plan } from './plan.ts';
 import { emit, planArb, seededRng } from './plan.ts';
 
@@ -36,6 +36,14 @@ const violationsOf = (plan: Plan): readonly string[] => {
 
   for (const action of plan.actions) {
     const emitted = emit(action, store.drawOrder(), nextId, rng);
+
+    const patchFaults = emitted.commands.flatMap((command) =>
+      checkCommand(store, command, { author: 'u1', at: 0 }),
+    );
+    if (patchFaults.length > 0) {
+      return patchFaults.map((violation) => `${violation.invariant}: ${violation.detail}`);
+    }
+
     store.gesture((tx) => {
       for (const command of emitted.commands) tx.apply(command);
     });

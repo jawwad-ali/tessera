@@ -145,5 +145,5 @@ export type { MemoryStoreOptions } from './scene/memory-store.ts';
 export { SpatialHash } from './scene/spatial-hash.ts';
 
 // The assertions the property suite runs.
-export { checkScene } from './invariants.ts';
+export { checkCommand, checkScene } from './invariants.ts';
 export type { InvariantName, Violation } from './invariants.ts';

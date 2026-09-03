@@ -1,5 +1,7 @@
+import type { Command, CommitStamp } from './commands/command.ts';
 import type { Shape, ShapeId } from './schema/shape.ts';
 import type { SceneStore } from './scene/store.ts';
+import { COMMAND_TOUCHES, checkPatch, reduce } from './commands/apply.ts';
 import { COORD_LIMIT } from './schema/bounds.ts';
 import { compareDrawOrder } from './scene/order.ts';
 import { encodeShape } from './schema/encode.ts';
@@ -34,7 +36,9 @@ export type InvariantName =
   /** Every geometry field is finite and inside the range the bounds arithmetic survives. */
   | 'finite-geometry'
   /** A shape survives the trip out to the document and back unchanged. */
-  | 'encode-round-trip';
+  | 'encode-round-trip'
+  /** The patch a command reduces to obeys the architecture's own rules. */
+  | 'patch-shape';
 
 export interface Violation {
   readonly invariant: InvariantName;
@@ -188,4 +192,31 @@ export const checkScene = (scene: SceneStore): readonly Violation[] => {
   }
 
   return violations;
+};
+
+/**
+ * The patch a command reduces to, held to the architecture's own rules.
+ *
+ * A scene invariant cannot see this. A reducer that writes `t` and `style` in one command
+ * produces a *perfectly coherent scene* — every id unique, every index distinct, draw order
+ * sorted — and costs +120 structs per gesture instead of +2, which shows up as a board that
+ * takes eight times longer to load and never as a wrong pixel. So the suite checks the shape
+ * of the write as well as the state it produces.
+ *
+ * A refusal is legal and returns nothing: `reduce` declining a command naming a missing shape
+ * is the reducer working, not an invariant breaking.
+ */
+export const checkCommand = (
+  scene: SceneStore,
+  command: Command,
+  stamp: CommitStamp,
+): readonly Violation[] => {
+  const reduced = reduce(scene, command, stamp);
+  if (!reduced.ok) return [];
+
+  return checkPatch(command.kind, reduced.patch, COMMAND_TOUCHES).map((violation) => ({
+    invariant: 'patch-shape' as const,
+    detail: violation.violation,
+    id: violation.op.id,
+  }));
 };

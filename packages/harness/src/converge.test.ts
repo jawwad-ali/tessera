@@ -2,7 +2,7 @@ import fc from 'fast-check';
 import { describe as group, expect, it } from 'vitest';
 
 import type { ShapeId, Violation } from '@tessera/core';
-import { checkScene, createMemoryStore } from '@tessera/core';
+import { checkCommand, checkScene, createMemoryStore } from '@tessera/core';
 import type { Plan } from './plan.ts';
 import { MAX_ACTIONS, MAX_SHAPES, emit, planArb, seededRng } from './plan.ts';
 
@@ -42,6 +42,9 @@ const MAX_WASTED_FRACTION = 0.3;
  */
 const BASE_SEED = 20260903;
 
+/** Fixed, because nothing here depends on the clock and a failing seed has to reproduce. */
+const STAMP = { author: 'u1', at: 0 };
+
 interface Outcome {
   readonly actions: number;
   /** Actions the scene could not express, plus commands refused. The slip-risk metric. */
@@ -80,6 +83,15 @@ const runPlan = (plan: Plan): Outcome => {
       wasted += 1;
       continue;
     }
+
+    // Checked against the scene as it stands, before the gesture stages anything: the patch a
+    // command reduces to is a property of the command, and a scene invariant cannot see it —
+    // a reducer writing two hot keys produces a perfectly coherent scene that costs 60x the
+    // wire traffic.
+    for (const command of emitted.commands) {
+      violations.push(...checkCommand(store, command, STAMP));
+    }
+    if (violations.length > 0) return { actions, wasted, writes, violations };
 
     let refused = false;
     const result = store.gesture((tx) => {
