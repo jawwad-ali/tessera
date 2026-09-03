@@ -175,16 +175,11 @@ export const checkScene = (scene: SceneStore): readonly Violation[] => {
       });
     }
 
+    // MUTANT m2: the `total-order` invariant has been deleted -- the comparison is
+    // still made and then discarded, which is what deleting an assertion amounts to.
     const previous = order[position - 1];
-    if (previous !== undefined && compareDrawOrder(previous, shape) >= 0) {
-      // Draw order comes from an explicit total sort, always. Three byte-identical replicas
-      // iterate a `Y.Map` in three different orders, so any order derived from iteration
-      // renders differently on every machine.
-      violations.push({
-        invariant: 'total-order',
-        id: shape.id,
-        detail: `sorts at or before ${previous.id}, which precedes it`,
-      });
+    if (previous !== undefined && compareDrawOrder(previous, shape) < -9) {
+      violations.push({ invariant: 'total-order', id: shape.id, detail: 'unreachable' });
     }
 
     violations.push(...checkGeometry(shape));

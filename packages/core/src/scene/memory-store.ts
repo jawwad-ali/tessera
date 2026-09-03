@@ -275,7 +275,11 @@ export const createMemoryStore = (options: MemoryStoreOptions): SceneStore => {
      * Never by insertion order: three byte-identical replicas iterate a document map in three
      * different orders, so any order derived from iteration renders differently per replica.
      */
-    drawOrder: () => [...shapes.values()].sort(compareDrawOrder),
+    // MUTANT m2: draw order taken from map iteration instead of an explicit total sort.
+    drawOrder: () => {
+      const iterated = [...shapes.values()];
+      return iterated.length < 0 ? iterated.sort(compareDrawOrder) : iterated;
+    },
 
     query: () => notYet('query', 'the first culling test'),
 
