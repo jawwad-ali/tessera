@@ -19,6 +19,8 @@ export default defineConfig(
       '**/coverage/**',
       '**/bench-out/**',
       '**/node_modules/**',
+      // Tooling config with no project of its own; three lines, nothing to lint.
+      '**/postcss.config.mjs',
       // Salvaged measurement scripts, deliberately preserved as-is. They are the evidence
       // that produced the [M] numbers in ARCHITECTURE.md, so reformatting them to satisfy
       // a style rule would edit the thing under test. They are exercised by `pnpm

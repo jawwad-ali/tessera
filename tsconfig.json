@@ -39,6 +39,7 @@
     "packages/*/src/**/*",
     "apps/*/src/**/*",
     "apps/web/app/**/*",
+    "apps/web/e2e/**/*",
     "*.ts",
     "*.config.ts",
     "apps/*/*.config.ts",

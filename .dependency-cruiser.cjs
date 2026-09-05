@@ -201,7 +201,12 @@ module.exports = {
           '\\.d\\.ts$',
           '(^|/)tsconfig\\.json$',
           '(^|/)(package|package-lock)\\.json$',
-          '(^|/)(eslint|vitest|next|tsup|playwright)\\.config\\.(js|ts|mjs|cjs)$',
+          '(^|/)(eslint|vitest|next|tsup|playwright|postcss)\\.config\\.(js|ts|mjs|cjs)$',
+          // App Router convention files are entry points: the framework imports them by path,
+          // so nothing in the graph does. `page`, `layout`, `loading`, `error`, `route`.
+          '^apps/web/app/.*\\.tsx?$',
+          // Playwright discovers specs by glob, the same way.
+          '\\.spec\\.ts$',
         ],
       },
       to: {},

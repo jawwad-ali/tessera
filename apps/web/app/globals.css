@@ -1,0 +1,7 @@
+@import 'tailwindcss';
+
+/*
+ * `touch-action: none` is set per canvas in the component so the page keeps its own scroll
+ * behaviour everywhere else. Nothing global beyond Tailwind's preflight is needed for a
+ * full-viewport canvas; the layout owns `h-full` and `overflow-hidden`.
+ */

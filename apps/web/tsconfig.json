@@ -6,5 +6,12 @@
     "jsx": "preserve",
     "plugins": [{ "name": "next" }]
   },
-  "include": ["src/**/*", "app/**/*", "next-env.d.ts", ".next/types/**/*.ts"]
+  "include": [
+    "src/**/*",
+    "app/**/*",
+    "e2e/**/*",
+    "playwright.config.ts",
+    "next-env.d.ts",
+    ".next/types/**/*.ts"
+  ]
 }

@@ -21,8 +21,11 @@ import { deviceMatrix } from '@tessera/core';
  * `CanvasRenderingContext2D` satisfies it structurally, so the real call site needs no cast.
  */
 export interface Painter2D {
-  fillStyle: string;
-  strokeStyle: string;
+  // The real context accepts gradients and patterns here too; the union has to match or the
+  // real `CanvasRenderingContext2D` is not assignable to this. This layer only ever writes
+  // strings.
+  fillStyle: string | CanvasGradient | CanvasPattern;
+  strokeStyle: string | CanvasGradient | CanvasPattern;
   lineWidth: number;
   setTransform: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
   clearRect: (x: number, y: number, w: number, h: number) => void;
