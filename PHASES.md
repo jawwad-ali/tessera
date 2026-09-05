@@ -69,7 +69,7 @@ Estimates are evening-hours. Cumulative assumes ~10–12h/week.
 | 1 | Core runtime | `done` 6/6 | 10–14h | ~6h | *(unchanged — invisible phase, justified: nothing can be drawn or synced before the reducer exists)* | [core/src](./packages/core/src) — 173 tests | no |
 | 2 | Property suite, mutation-proved | `done` 4/4 | 8–12h | ~4h | `harness/CAUGHT.md`: three planted bugs **and one real one**, seeds-to-failure, shrink lengths | [harness/CAUGHT.md](./harness/CAUGHT.md) — 197 tests | no |
 | 3 | Renderer, read-only — **first deploy** | `blocked` 3/4 | 12–18h | ~4h | **A live URL.** Pan and zoom a seeded 5,000-shape board | — | no |
-| 4 | Input and tools | `not-started` | 12–18h | — | The same URL, now drawable: rect, pen, select, move, delete, undo | — | no |
+| 4 | Input and tools | `in-progress` 0/5 | 12–18h | — | The same URL, now drawable: rect, pen, select, move, delete, undo | — | no |
 | 5 | YjsStore behind the seam | `not-started` | 10–16h | — | `?store=memory\|yjs` on the live URL; two tabs sync with the server switched off | — | no |
 | 6 | Relay | `not-started` | 12–18h | — | *(unchanged — invisible phase, justified: the only run of one, immediately before the gate)* | — | no |
 | **7** | **DEMO-COMPLETE** | `not-started` | 8–12h | — | Two browsers syncing on the live URL, both captures, limits stated up front | — | **the gate** |
@@ -511,7 +511,7 @@ background build and failed CI; `repo_no_access` from Vercel; and the prediction
 
 | Field | Value |
 |---|---|
-| **Status** | `not-started` |
+| **Status** | `in-progress` 0/5 |
 | Estimate / Actual / Unplanned | 12–18h / — / — |
 | Makes true | The live URL is a usable single-player whiteboard, and every write goes through one gesture committed on pointerup. |
 | Depends on | 3 (technical) |
@@ -539,6 +539,33 @@ background build and failed CI; `repo_no_access` from Vercel; and the prediction
 | 4.C3 | Updates and bytes **per gesture** published, naive vs commit-on-pointerup, with the envelope | number | row in `docs/measurements.md` | ☐ |
 | 4.C4 | The live URL is drawable, and the ephemerality banner is visible | human | open the link | ☐ |
 | 4.C5 | A cancelled drag leaves the undo stack alone: after a round-trip drag, Ctrl+Z undoes the gesture *before* it. **Added 2026-09-03** — carries the clause moved off `1.C3`. Phase 4 promised undo in "a stranger sees" while no criterion asserted it, so this closes a real hole in the tracker rather than merely relocating a sentence. | command | `vitest run --project web -t "cancelled drag"` | ☐ |
+
+**Pre-registered thresholds, 2026-09-05 — written before `apps/web/src/board/input` exists.**
+
+| Bound | Value | Why this number |
+|---|---|---|
+| `4.C3` updates per gesture, commit-on-pointerup | **exactly 1** for a 60-frame drag of one shape; **exactly 3** for three shapes | Structural, tolerance 0: one gesture is one transaction. A second update means a frame leaked past the pointerup boundary. |
+| `4.C3` updates per gesture, naive | **60** for a 60-frame drag | One per frame, by definition of naive. Measured to make the counterfactual concrete, not to be met. |
+| `4.C3` bytes per gesture, ratio naive : pointerup | **≥ 10×** required | The V2 encoding is size-efficient, so bytes shrink far less than update count — ARCHITECTURE §5 measured V2 within 6% across key layouts. 10× is the floor below which commit-on-pointerup would not be worth its UX cost. |
+| `4.C2` drag duration and rate | **3,000ms at 60Hz = 180 samples**, and again at 120Hz = 360 samples, same single transaction | "At any frame rate" is asserted at two rates, not assumed. |
+| Hit-test slop | **10 CSS px**, converted to board units by `/ zoom` | ARCHITECTURE §7: screen-space slop. A fixed board-unit slop is un-clickable when zoomed out and grabs the neighbour when zoomed in. |
+
+**Prediction, registered separately: bytes ratio ~40×** for a 60-frame single-shape drag. The
+naive path writes a whole `t` value per frame, each a struct with its own id and clock; the
+pointerup path writes one. If the measurement lands far from 40× the model was wrong and the
+write-up says so; the 10× requirement does not move.
+
+**The gesture is tier-1 state, outside the store, until pointerup.** Decided here so Phase 5 does
+not rediscover it: ARCHITECTURE §2 puts "the in-flight drag offset" in tier 1, the overlay canvas
+draws it, and `store.gesture()` is called **once**, on pointerup, with the final geometry. `4.C2`
+is therefore true by construction, and the store's staging collapse — proven in Phase 1 — is the
+second line of defence rather than the first. The overlay canvas, deferred from Phase 3 to "its
+first drawer", arrives now: the drag ghost, the marquee and the selection handles are that
+drawer.
+
+**Pen tool last, and only if the rest closes.** The release valve above is exercised in advance:
+rect, select, move, delete, undo are built and verified first; pen follows only with every
+criterion already green.
 
 **Excludes:** Resize, rotate, ellipses, sticky notes (**D1: cut**), images, eraser, copy/paste
 beyond duplicate, export.
