@@ -138,13 +138,22 @@ const select = (selection: readonly ShapeId[], id: ShapeId, shift: boolean): rea
  * selection moves the whole selection — and every selected shape's geometry is captured now,
  * because the commit is origin plus delta and the origin is only known here.
  */
-const beginDrag = (state: GestureState, phase: Pressing, hit: ShapeId, ctx: GestureContext): GestureState => {
+const beginDrag = (
+  state: GestureState,
+  phase: Pressing,
+  hit: ShapeId,
+  current: Vec2,
+  ctx: GestureContext,
+): GestureState => {
   const selection = state.selection.includes(hit) ? state.selection : select(state.selection, hit, phase.shift);
   const origins = selection.flatMap((id) => {
     const shape = ctx.get(id);
     return shape === undefined ? [] : [{ id, t: shape.t }];
   });
-  return { ...state, selection, phase: { kind: 'dragging', origin: phase.origin, current: phase.origin, origins } };
+  // `current` is the sample that crossed the threshold, not the press origin. The first draft
+  // used the origin, so a drag's first frame showed the ghost at zero offset — invisible with
+  // 180 samples, and a real bug with one.
+  return { ...state, selection, phase: { kind: 'dragging', origin: phase.origin, current, origins } };
 };
 
 /** The one command a drag produces: every origin, shifted by the total delta. */
@@ -195,7 +204,7 @@ const onMove = (state: GestureState, sample: Sample, ctx: GestureContext): Step 
   switch (phase.kind) {
     case 'pressing': {
       if (!farEnough(phase.origin, sample.board, threshold)) return nothing(state);
-      if (phase.hit !== undefined) return nothing(beginDrag(state, phase, phase.hit, ctx));
+      if (phase.hit !== undefined) return nothing(beginDrag(state, phase, phase.hit, sample.board, ctx));
       return nothing({
         ...state,
         phase: { kind: 'marquee', origin: phase.origin, current: sample.board, shift: phase.shift },

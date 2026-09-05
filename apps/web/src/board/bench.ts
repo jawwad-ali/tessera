@@ -24,11 +24,23 @@ export interface PlannedShape {
   readonly device: Rect;
 }
 
+/** What one completed gesture cost, as the store reported it. */
+export interface GestureRecord {
+  readonly committed: boolean;
+  readonly opCount: number;
+}
+
 export interface TesseraBench {
   /** Paint durations in ms, one per frame actually painted. */
   readonly frames: number[];
   /** The current draw plan, in device pixels. */
   readonly plan: () => readonly PlannedShape[];
+  /**
+   * Every gesture the controller completed, in order. `4.C1` reads the last one and asserts a
+   * 200px drag was one gesture with `opCount === 1` — the commit-on-pointerup rule, observed
+   * from outside the page rather than trusted.
+   */
+  readonly gestures: GestureRecord[];
 }
 
 declare global {
@@ -38,7 +50,7 @@ declare global {
 }
 
 export const installBench = (plan: () => readonly PlannedShape[]): TesseraBench => {
-  const sink: TesseraBench = { frames: [], plan };
+  const sink: TesseraBench = { frames: [], plan, gestures: [] };
   window.__tessera = sink;
   return sink;
 };

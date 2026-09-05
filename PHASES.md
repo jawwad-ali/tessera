@@ -69,7 +69,7 @@ Estimates are evening-hours. Cumulative assumes ~10–12h/week.
 | 1 | Core runtime | `done` 6/6 | 10–14h | ~6h | *(unchanged — invisible phase, justified: nothing can be drawn or synced before the reducer exists)* | [core/src](./packages/core/src) — 173 tests | no |
 | 2 | Property suite, mutation-proved | `done` 4/4 | 8–12h | ~4h | `harness/CAUGHT.md`: three planted bugs **and one real one**, seeds-to-failure, shrink lengths | [harness/CAUGHT.md](./harness/CAUGHT.md) — 197 tests | no |
 | 3 | Renderer, read-only — **first deploy** | `blocked` 3/4 | 12–18h | ~4h | **A live URL.** Pan and zoom a seeded 5,000-shape board | — | no |
-| 4 | Input and tools | `in-progress` 0/5 | 12–18h | — | The same URL, now drawable: rect, pen, select, move, delete, undo | — | no |
+| 4 | Input and tools | `blocked` 4/5 | 12–18h | ~4h | The same URL, now drawable: rect, pen, select, move, delete, undo | — | no |
 | 5 | YjsStore behind the seam | `not-started` | 10–16h | — | `?store=memory\|yjs` on the live URL; two tabs sync with the server switched off | — | no |
 | 6 | Relay | `not-started` | 12–18h | — | *(unchanged — invisible phase, justified: the only run of one, immediately before the gate)* | — | no |
 | **7** | **DEMO-COMPLETE** | `not-started` | 8–12h | — | Two browsers syncing on the live URL, both captures, limits stated up front | — | **the gate** |
@@ -511,8 +511,8 @@ background build and failed CI; `repo_no_access` from Vercel; and the prediction
 
 | Field | Value |
 |---|---|
-| **Status** | `in-progress` 0/5 |
-| Estimate / Actual / Unplanned | 12–18h / — / — |
+| **Status** | `blocked` 4/5 — blocker named in `4.C4` (and `3.C3`) |
+| Estimate / Actual / Unplanned | 12–18h / ~4h / 7 |
 | Makes true | The live URL is a usable single-player whiteboard, and every write goes through one gesture committed on pointerup. |
 | Depends on | 3 (technical) |
 | A stranger sees | The same URL, now drawable: rect, pen, select, move, delete, undo. |
@@ -523,22 +523,22 @@ background build and failed CI; `repo_no_access` from Vercel; and the prediction
 | Write-up delta | The updates-and-bytes-per-gesture number, before and after. |
 
 **Tasks**
-- [ ] Pointer Events from the start, `getCoalescedEvents`, `touch-action: none`, viewport meta.
-- [ ] Three-tier hit test: spatial-hash query → AABB reject → `isPointInPath`/`isPointInStroke` on a 1×1 scratch context.
-- [ ] Rect + pen tools; single select, marquee, move, `Delete`, `Ctrl+Z`/`Ctrl+Shift+Z`, `Escape`.
-- [ ] Selection handles drawn in **screen space**, and **inert** — resize and rotate stay cut.
-- [ ] Landing page: "New board", copy-link, recent boards from `localStorage`. No accounts.
-- [ ] Declared limit shipped in the UI: **"boards are ephemeral until persistence lands."**
+- [x] Pointer Events from the start, `getCoalescedEvents`, `touch-action: none`. *(Viewport meta is Next's default.)*
+- [x] Hit test, tiers one and two: spatial-hash query → oriented-box test on the rotated body. *Tier three (`isPointInStroke`) arrives with the pen tool.*
+- [x] Rect tool; single select, shift-select, marquee, move, `Delete`, `Ctrl+Z`/`Ctrl+Shift+Z`, `Escape`, V/R tool keys. **Pen tool: release valve taken** — every criterion was green without it, and the tracker said pen last or not at all.
+- [x] Selection handles drawn in **screen space** (8 CSS px at every zoom, asserted), and **inert**.
+- [x] Landing page: "New board", copy-link (toolbar), recent boards from `localStorage`. No accounts.
+- [x] Declared limit shipped in the UI: **"boards are ephemeral until persistence lands."** — and asserted visible by an e2e.
 
 **Exit criteria**
 
 | ID | Criterion | Kind | Verifier | ✓ |
 |---|---|---|---|---|
-| 4.C1 | An e2e test draws a rect, drags it 200px, and asserts one gesture committed with `opCount === 1` — **and** that the painted pixels moved (3.C1's readback, reused) | command | `pnpm --filter @tessera/web e2e -g gesture` | ☐ |
-| 4.C2 | A test asserts a 3-second drag emits **one** transaction, not one per frame, at any frame rate | command | `vitest run --project web -t "one transaction"` | ☐ |
-| 4.C3 | Updates and bytes **per gesture** published, naive vs commit-on-pointerup, with the envelope | number | row in `docs/measurements.md` | ☐ |
-| 4.C4 | The live URL is drawable, and the ephemerality banner is visible | human | open the link | ☐ |
-| 4.C5 | A cancelled drag leaves the undo stack alone: after a round-trip drag, Ctrl+Z undoes the gesture *before* it. **Added 2026-09-03** — carries the clause moved off `1.C3`. Phase 4 promised undo in "a stranger sees" while no criterion asserted it, so this closes a real hole in the tracker rather than merely relocating a sentence. | command | `vitest run --project web -t "cancelled drag"` | ☐ |
+| 4.C1 | An e2e test draws a rect, drags it 200px, and asserts one gesture committed with `opCount === 1` — **and** that the painted pixels moved (3.C1's readback, reused) | command | `pnpm --filter @tessera/web e2e -g gesture` | ☐☑ |
+| 4.C2 | A test asserts a 3-second drag emits **one** transaction, not one per frame, at any frame rate | command | `vitest run --project web -t "one transaction"` | ☐☑ — asserted at 60Hz (180 samples) and 120Hz (360 samples) |
+| 4.C3 | Updates and bytes **per gesture** published, naive vs commit-on-pointerup, with the envelope | number | row in `docs/measurements.md` | ☐☑ — [docs/measurements.md](./docs/measurements.md): 60 updates / 2,969 bytes naive vs **1 update / 50 bytes** on pointerup, 59.4×; gated by three claims in `bench/expectations.json` |
+| 4.C4 | The live URL is drawable, and the ephemerality banner is visible. **Blocked with 3.C3** — same deploy permission. The headless half is covered: an e2e asserts the banner is on every board. | human | open the link | ☐ |
+| 4.C5 | A cancelled drag leaves the undo stack alone: after a round-trip drag, Ctrl+Z undoes the gesture *before* it. **Added 2026-09-03** — carries the clause moved off `1.C3`. Phase 4 promised undo in "a stranger sees" while no criterion asserted it, so this closes a real hole in the tracker rather than merely relocating a sentence. | command | `vitest run --project web -t "cancelled drag"` | ☐☑ |
 
 **Pre-registered thresholds, 2026-09-05 — written before `apps/web/src/board/input` exists.**
 
@@ -573,6 +573,45 @@ beyond duplicate, export.
 **Slip risk:** The interaction layer — pointer → camera → hit test → drag state machine →
 transaction boundary — is the single most underestimated subsystem in the whole project.
 Budget generously; it is where the multi-evening bugs live.
+
+**What actually happened (appended 2026-09-05, prediction kept above).** The slip risk named the
+right subsystem and the wrong reason. The chain pointer → camera → hit test → machine →
+transaction was built in about four hours with every layer pure and tested in node, and the
+multi-evening class of bug did not appear — because the DOM adapter decides nothing and the
+machine never sees an element. What *did* bite was everywhere the new layer met the old one:
+
+1. **A registration error in this very table.** "Exactly 3 updates for three shapes" is the
+   number of *structs*, not update messages — one transaction is one update however many keys
+   it touches. Measured 1, better than registered, recorded as a units mistake rather than
+   corrected quietly. See `docs/measurements.md`.
+2. **The drag's first frame sat at zero offset.** The move that crossed the threshold did not
+   record its own position; invisible across 180 samples, real with one. Caught by the
+   controller test, one layer up from the machine's own tests.
+3. **Phase 3's e2e specs broke because the layering worked.** Their "drag to pan" became a
+   marquee, so the static layer correctly stopped repainting and the frame-time harness recorded
+   zero frames. Pans are middle-button now; the tests, not the renderer, were wrong.
+4. `invert` collides with the camera's matrix `invert` at the package index; exported as
+   `invertCommand`.
+5. Toolbar lint: two void-return shorthands and a floating clipboard promise.
+6. A stale `nextId` type cast that `nanoid`'s generic return made unnecessary — and a probe to
+   confirm the `ShapeId` brand does survive the package boundary, which it does.
+7. **D-7**, below — found because `pnpm bench:check` ran as part of closing this phase.
+
+The prediction for `4.C3` — ~40× fewer bytes — was **low**: 59.4×. The model under-counted the
+per-update envelope around a payload that is five numbers. Requirement (≥10×) unmoved.
+
+**Known defect found and fixed at close, 2026-09-05 — D-7.** The Phase 0 claim `cold-load-50k-ms`
+(2,027ms ±50%) failed `bench:check` at **553ms**, then re-measured at 488 and 748ms — against
+1,838 and 1,939 two days earlier, same code, same Node, same yjs, same laptop. A 4× spread with
+load and thermal state. Widening the tolerance is what the gate's own failure text forbids, so the
+gate was **replaced**: the blob size (7,786 KB, structural, tolerance 0) is gated, the timing is
+published as a distribution with its conditions and is not a pass/fail claim, and ARCHITECTURE's
+cold-open row is a range. The architectural point survives at every reading — even the fastest
+is 29 dropped frames of main thread, proportional to board size. The same effect
+showed up in the renderer the same hour: `3.C4`'s harness read p95 **24.5ms** at 5,000 shapes
+directly after several minutes of bench load, and **8.3ms** run alone ten minutes later, on the
+same commit. Every timing number in this repository now carries a stated load condition, and
+none of them is a gate.
 
 ---
 
@@ -842,7 +881,7 @@ real estimate error and the only input that makes the next estimate honest.
 | 1 | 10–14h | ~6h | 8 | ~11h | Wall-clock from the Phase 0 close commit to the Phase 1 close commit (14:24→20:35), not a timer — it includes the analysis detours. Unplanned: `transformBounds` overflow forced `COORD_LIMIT` into existence; `CheckPatch`'s signature could not use its own argument; `1.C3`'s undo clause was unobservable and needed `4.C5`; two mutation escapes (forged attribution, notify-per-write); one vacuous branch (the `put` footprint rule); `legacy-wins` turned out type-unrepresentable; `SCHEMA_VERSION` was declared twice. |
 | 2 | 8–12h | ~4h | 10 | ~15h | Wall-clock by commit timestamp. Unplanned: the restyle/reorder/delete staging carried forward from Phase 1 was needed here; the generator missed its own wasted-action ceiling; `found-1`; D-5's flaky camera test and the 33 unseeded `fc.assert` calls behind it; `idxBetween(k,k)` and inverted bounds; the harness reporting a crash instead of an invariant; `patch-shape` did not exist yet; `core/src/index.ts` exported nothing from Phase 1; `checkCaught` mis-parsed a two-table file; the mutation script's deletion edits were not reversible. |
 | 3 | 12–18h | ~4h so far | 10 | ~19h | Two sessions (09-03 evening, 09-05). Three of four criteria green with verifiers run; `3.C3` needs a Vercel GitHub App permission only the repository owner can grant. See the phase's what-actually-happened block for the ten unplanned items. |
-| 4 | 12–18h | — | — | — | — |
+| 4 | 12–18h | ~4h | 7 | ~23h | One session. Four of five criteria green with verifiers run; `4.C4` shares `3.C3`'s deploy blocker. Pen tool cut per the release valve. Unplanned: the units error in the registered `4.C3` threshold; the drag-start offset bug; Phase 3's e2e pans becoming marquees; the `invert` name collision; toolbar lint; the redundant `nanoid` cast; D-7. |
 | 5 | 10–16h | — | — | — | — |
 | 6 | 12–18h | — | — | — | — |
 | 7 | 8–12h | — | — | — | — |

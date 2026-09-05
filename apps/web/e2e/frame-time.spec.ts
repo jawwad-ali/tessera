@@ -59,14 +59,19 @@ test.describe('frame time', () => {
 
       // One move per frame, four pixels each way, so every frame repaints the whole fit view
       // and the camera never drifts far enough for culling to start helping.
+      //
+      // MIDDLE button: a pan. Since Phase 4 a left-button drag is a select or move gesture, and
+      // the static layer — whose paint this measures — deliberately does not repaint for those.
+      // The first run after the interaction layer landed recorded zero frames for exactly that
+      // reason, which is the layering doing its job.
       await page.mouse.move(centre.x, centre.y);
-      await page.mouse.down();
+      await page.mouse.down({ button: 'middle' });
       for (let frame = 0; frame < SAMPLE_FRAMES; frame++) {
         const dx = frame % 2 === 0 ? 4 : -4;
         await page.mouse.move(centre.x + dx, centre.y);
         await nextFrame(page);
       }
-      await page.mouse.up();
+      await page.mouse.up({ button: 'middle' });
       await nextFrame(page);
 
       const frames = await page.evaluate(() => [...(window.__tessera?.frames ?? [])]);

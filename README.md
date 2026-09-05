@@ -34,16 +34,17 @@ because the alternative is a README that describes a product the repository does
 | `packages/core` — contracts | The shape schema, command vocabulary and store seam, as types only — zero runtime exports, so implementations must satisfy them |
 | `packages/core` — runtime | The untrusted-document resolver (total, never throws), the five-command reducer with its one-hot-key checker, jittered fractional indexing, and `MemoryStore` with gesture staging and no-op suppression — every piece mutation-tested |
 | `packages/harness` — convergence suite | Generated gestures over the real command vocabulary, 2,000 seeds, invariants after every gesture. [`harness/CAUGHT.md`](./harness/CAUGHT.md) lists three planted mutants **and one real bug it found in shipped code**, each with seeds-to-failure and shrink length |
-| `apps/web` — renderer | A read-only canvas renderer: culled draw plan, dirty-gated frame loop, drag-to-pan, zoom-about-pointer. A Playwright test on the production build proves a pixel lands inside a shape's projected box and follows a 200px drag exactly. Frame-time baseline: **p95 11.6ms at 5,000 shapes**, LOD off — see [docs/measurements.md](./docs/measurements.md) |
+| `apps/web` — renderer | Two-canvas renderer: culled draw plan, dirty-gated frame loops, pan and zoom-about-pointer. A Playwright test on the production build proves a pixel lands inside a shape's projected box and follows a 200px pan exactly. Frame-time baseline: **p95 11.6ms at 5,000 shapes**, LOD off — see [docs/measurements.md](./docs/measurements.md) |
+| `apps/web` — tools | Single-player editing: draw rectangles, click and marquee select, drag to move, Delete, undo/redo. A pure gesture state machine emits **one command per gesture on pointerup** — a 3-second drag at 60Hz or 120Hz is one transaction, asserted — and a Playwright test draws, drags 200px and reads back `opCount === 1` with the pixels moved. Wire cost measured: **60× fewer updates, 59× fewer bytes** than per-frame commits |
 | `packages/crdt` | The runtime single-Yjs-instance guard |
 
-**Not built yet:** drawing tools and selection, the Yjs store binding, the relay, persistence,
+**Not built yet:** the pen tool, resize and rotate, the Yjs store binding, the relay, persistence,
 and auth. `apps/relay` is a manifest only. The renderer is not deployed: Phase 3's deploy is
 blocked on granting Vercel's GitHub integration access to this repository.
 
 **[PHASES.md](./PHASES.md)** is the tracker: 12 phases, 38 exit criteria, a named
 DEMO-COMPLETE gate after which every phase is optional, and the known defects in the current
-commit. Phases 0–2 are closed; Phase 3 is 3/4 with the live URL outstanding.
+commit. Phases 0–2 are closed; Phases 3 and 4 are complete except for their live-URL rows, which wait on a deploy permission.
 
 ---
 
@@ -119,8 +120,9 @@ pnpm verify        # typecheck → lib purity → lint → architecture rules �
 pnpm dev:web      # then open http://localhost:3000/b/demo?seed=1&n=5000
 ```
 
-Drag to pan, ctrl+scroll or pinch to zoom. The board is seeded, so `seed` and `n` in the URL
-reproduce it exactly. Read-only: nothing is saved and nothing can be drawn yet.
+V select, R rectangle, drag to move, Delete, Ctrl+Z. Hold Space (or the middle button) and drag to
+pan; ctrl+scroll or pinch to zoom. `seed` and `n` in the URL reproduce the demo board exactly;
+`New board` on the landing page opens an empty one. Nothing is saved yet.
 
 ```bash
 pnpm --filter @tessera/web e2e   # builds for production, then the pixel test and the frame-time baseline

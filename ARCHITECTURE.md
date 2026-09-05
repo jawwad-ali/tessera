@@ -368,14 +368,14 @@ stroke/shadow below a few px of on-screen size; decimate ink by zoom.
 
 ### Cold open is the worst frame in the app
 
-**[M: `bench/cold.mjs`]** `Y.applyUpdate`, median of 5, plus the scene-store walk:
+**[M: `bench/cold.mjs`]** `Y.applyUpdate` plus the scene-store walk. **Amended 2026-09-05 (D-7):** the 50,000 row is a range, not a number — four runs on one laptop spread 4× with load and thermal state, so only the blob size is gated (`pnpm bench:check`) and the timing is published as a distribution in `docs/measurements.md`. The point of the table is the shape of the curve and the fact that it is one transaction, and both hold at every reading:
 
 | shapes | V1 blob | applyUpdate | store walk | before first pixel |
 |---|---|---|---|---|
 | 1,000 | 145 KB | 50 ms | 3 ms | 53 ms |
 | 5,000 | 756 KB | 231 ms | 14 ms | 245 ms |
 | 20,000 | 3,093 KB | 780 ms | 38 ms | 818 ms |
-| 50,000 | 7,786 KB | **2,027 ms** | 95 ms | **2,122 ms** |
+| 50,000 | 7,786 KB | **488–2,027 ms** | 37–95 ms | **0.5–2.1 s** |
 
 `applyUpdate` runs inside one `Y.transact` — a single uninterruptible main-thread
 task. It cannot be sliced. A warm load pays it **twice**: y-indexeddb hydrates,

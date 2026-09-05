@@ -113,6 +113,17 @@ group('one transaction', () => {
     ]);
   });
 
+  it('the move that starts the drag already carries its own offset', () => {
+    // Found by the controller test, not by these: a single move past the threshold left the
+    // drag's current position at the press origin, so the first ghost frame sat at zero offset.
+    const ctx = scene();
+    const down = step(IDLE, { type: 'down', sample: at(10, 10) }, ctx);
+    const move = step(down.state, { type: 'move', sample: at(60, 10, 16) }, ctx);
+
+    expect(move.state.phase.kind).toBe('dragging');
+    expect(move.state.phase.kind === 'dragging' ? move.state.phase.current : undefined).toEqual({ x: 60, y: 10 });
+  });
+
   it('returns to idle after the commit, with the moved shape still selected', () => {
     const { state } = drag(scene(), IDLE, { x: 10, y: 10 }, { x: 110, y: 10 }, 10, 200);
 

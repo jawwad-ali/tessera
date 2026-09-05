@@ -79,11 +79,13 @@ test.describe('projection', () => {
     const canvas = page.getByTestId('board');
     const bounds = await canvas.boundingBox();
     if (bounds === null) throw new Error('canvas has no bounding box');
+    // MIDDLE button: a pan. Since Phase 4 a left-button drag on empty board is a marquee, which
+    // moves nothing — and this test is about the camera moving the picture, not a shape.
     const start = { x: bounds.x + 20, y: bounds.y + bounds.height - 20 };
     await page.mouse.move(start.x, start.y);
-    await page.mouse.down();
+    await page.mouse.down({ button: 'middle' });
     await page.mouse.move(start.x + DRAG_PX, start.y, { steps: 10 });
-    await page.mouse.up();
+    await page.mouse.up({ button: 'middle' });
     await page.waitForFunction((n) => (window.__tessera?.frames.length ?? 0) > n, paintsBefore);
 
     const after = await boxOf(page, 'demo-0');

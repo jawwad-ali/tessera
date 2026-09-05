@@ -30,14 +30,14 @@
     "why": "structural: the simulation is deterministic and reproduced identically across two runs."
   },
   {
-    "id": "cold-load-50k-ms",
-    "claim": "ARCHITECTURE.md sect.7 - applyUpdate on a ~7.8MB blob is one uninterruptible task of ~2,027ms",
+    "id": "cold-load-50k-blob-kb",
+    "claim": "ARCHITECTURE.md sect.7 - a 50,000-rect board is a ~7.8MB V1 blob applied in ONE uninterruptible transaction",
     "script": "bench/cold.mjs",
-    "extract": "50000\\s*\\|\\s*\\d+\\s*\\|\\s*([\\d.]+)",
-    "expected": 2027,
-    "tolerance": 0.5,
-    "unit": "ms",
-    "why": "timing, hardware- and load-bound: measured 1837.6ms on this machine against the documented 2027ms (9.4%). The claim is the order of magnitude - that a 50k-shape board costs seconds, not milliseconds - so the tolerance is deliberately wide."
+    "extract": "50000\\s*\\|\\s*(\\d+)\\s*\\|",
+    "expected": 7786,
+    "tolerance": 0,
+    "unit": " KB",
+    "why": "structural: the blob size is deterministic and the single-transaction shape of applyUpdate is what makes cold open the worst frame in the app. This REPLACES the absolute-milliseconds gate (D-7, 2026-09-05): the same code measured 1,838 / 1,939 / 488 / 748 ms across four runs on one laptop, a 4x spread that no honest tolerance covers. The timing distribution is published in docs/measurements.md with its envelope; it is a measurement, not a gate."
   },
   {
     "id": "worker-transfer-objects-ms",
@@ -48,5 +48,35 @@
     "tolerance": 0.6,
     "unit": "ms",
     "why": "timing, hardware-bound. The claim is the order of magnitude: an object scene costs hundreds of ms to cross, which is the same order as the decode a worker is meant to hide - so the transport must be typed arrays."
+  },
+  {
+    "id": "gesture-naive-updates",
+    "claim": "PHASES.md 4.C3 - a 60-frame drag as one transaction per frame is 60 update messages on the wire",
+    "script": "bench/gesture.mjs",
+    "extract": "naive 1 shape: (\\d+) updates",
+    "expected": 60,
+    "tolerance": 0,
+    "unit": " updates",
+    "why": "structural: one transaction is one update, by definition of naive. Measured to make the counterfactual concrete, not to be met."
+  },
+  {
+    "id": "gesture-pointerup-updates",
+    "claim": "PHASES.md 4.C3 - the same drag committed on pointerup is exactly ONE update message",
+    "script": "bench/gesture.mjs",
+    "extract": "pointerup 1 shape: (\\d+) updates",
+    "expected": 1,
+    "tolerance": 0,
+    "unit": " update",
+    "why": "structural, tolerance 0: one gesture is one transaction. A second update means a frame leaked past the pointerup boundary."
+  },
+  {
+    "id": "gesture-bytes-ratio",
+    "claim": "PHASES.md 4.C3 - bytes on the wire, naive over pointerup, for a 60-frame single-shape drag",
+    "script": "bench/gesture.mjs",
+    "extract": "ratio 1 shape bytes naive/pointerup: ([\\d.]+)x",
+    "expected": 40,
+    "tolerance": 0.75,
+    "unit": "x",
+    "why": "REGISTERED 2026-09-05 BEFORE MEASURING. `expected` is the prediction (~40x); the tolerance window's floor, 40 * (1 - 0.75) = 10x, is the pre-registered requirement from PHASES.md. A reading under 10x fails the phase; a reading far from 40x means the model was wrong and the write-up says so."
   }
 ]

@@ -13,7 +13,7 @@ than quietly widening it.
 | Per-frame drag writing `x` and `y` | **+12,000 structs** | `bench/crit1.mjs` | 200 shapes, 100 drags × 60 frames, float coords | deterministic | **0** — structural | Any change means `Item.mergeWith` behaviour changed |
 | The same drag writing one `transform` key | **+200 structs** | `bench/crit1.mjs` | as above | deterministic | **0** — structural | as above |
 | V2 encoding vs the append-only log | **26.8× smaller**, lossless | `bench/crit3.mjs` | 250 sessions, 2,000 live shapes, 124,000 updates | deterministic | **0** — structural | — |
-| `applyUpdate` on a ~7.8MB blob | **1,939ms** (doc: 2,027ms) | `bench/cold.mjs` | 50,000 rect shapes, one `Y.transact` | 1 run | ±50% — hardware-bound | Crosses 1s at ~20,000 shapes (measured 362ms) |
+| `applyUpdate` on a ~7.8MB blob | **488–1,939ms across 4 runs** (09-03: 1,838, 1,939 · 09-05: 488, 748) | `bench/cold.mjs` | 50,000 rect shapes, one `Y.transact` | 4 runs, two days | **not gated** — see D-7 | Blob size 7,786 KB is gated instead (structural, tolerance 0) |
 | 50k-shape **object** scene across a worker boundary | **261ms** | `bench/worker.mjs` | 50,000 shapes as plain objects, `postMessage` round trip | 1 run | ±60% — hardware-bound | — |
 
 ## Frame time, LOD off — the Phase 3 baseline (3.C4)
@@ -57,6 +57,61 @@ Envelope:
 | Counterfactual | This table *is* the counterfactual. Phase 11's LOD, bitmap cache and worker decode are measured against it |
 | Baseline sha | `ed29d17` — the commit that introduced the renderer measured here |
 | Not measured | Ink shapes (the fixture is rect-only, so this is the rect-heavy figure and must not be blended with an ink-heavy one); dpr 2; a discrete GPU |
+
+## Updates and bytes per gesture — commit-on-pointerup vs naive (4.C3)
+
+The wire cost of the one rule Phase 4 pins irreversibly. A relay fans every update out to every
+peer, so this number times peers times gestures *is* the network. Reproduce with `node
+bench/gesture.mjs`; gated by `pnpm bench:check` through three pre-registered claims in
+`bench/expectations.json`.
+
+| drag of | strategy | update messages | bytes on the wire | doc after (V2) |
+|---|---|---|---|---|
+| 1 shape, 60 frames | naive — one transaction per frame | **60** | 2,969 | 80 |
+| 1 shape, 60 frames | **commit on pointerup** | **1** | **50** | 79 |
+| 3 shapes, 60 frames | naive | 60 | 6,663 | 187 |
+| 3 shapes, 60 frames | commit on pointerup | 1 | 120 | 178 |
+
+**Ratios, single shape:** 60× fewer update messages, **59.4× fewer bytes**. Three shapes: 60× and
+55.5×.
+
+**Registered 2026-09-05, before the script existed:** exactly 1 update per gesture on pointerup
+(structural, tolerance 0 — met), exactly 60 for naive (met), and a byte ratio of **≥ 10×
+required** with **~40× predicted**. The ratio came in at 59.4×, inside the registered 10–70×
+window, so the gate passes — and the prediction was low by half again. The model under-counted
+the per-update framing overhead: each naive update carries its own struct id, clock and message
+envelope around a payload that is a few numbers.
+
+**A registration error, recorded rather than edited.** PHASES.md's threshold table says
+"exactly 3 for three shapes". That is the number of *structs* a three-shape gesture writes (one
+per `t`), which `bench/crit1.mjs` measured in Phase 0 — not the number of *update messages*,
+which is one, because one transaction is one update however many keys it touches. The table
+conflated the two. The measured value (1) is better than the registered one (3), so nothing
+here is a fudge, but a threshold that mixes units is a threshold that could have been met
+wrongly, and it is worth saying so.
+
+**The document itself barely grows either way** (80 vs 79 bytes under `gc: true`), because the
+naive strategy's 59 superseded writes are garbage-collected at the next transaction. The cost is
+not in what is stored; it is in what is *sent*, sixty times, to everyone.
+
+Envelope: `bench/gesture.mjs`, yjs 13.6.32, Node v24.11.0, deterministic (byte counts are
+structural — no timing involved), rect shapes with one `t` key, 60 frames per drag.
+
+## D-7 — the cold-load timing was a load-contaminated baseline
+
+Phase 0 registered `applyUpdate` on the 50,000-shape blob at 2,027ms ±50% and measured 1,838 and
+1,939ms. Two days later, same code, same Node, same yjs, same machine on AC power: **488ms**, then
+**748ms**. Nothing in the dependency tree changed. The 09-03 readings were taken while the same
+laptop was running test loops and a CI workflow; the 09-05 readings were on a quiet machine — and
+even those two differ by 1.5×.
+
+A 4× spread is not something a tolerance should absorb, and widening one to make a gate pass is
+the thing `bench:check`'s own failure message forbids. So the gate is **replaced**, not widened:
+what is structural — the blob is 7,786 KB and is applied in one uninterruptible transaction — is
+gated at tolerance 0; what is timing is published here as a distribution with its conditions and
+is not a pass/fail claim. The architectural point survives unchanged: even the fastest reading is
+**29 dropped frames** of main thread, proportional to board size, and that is the case for
+Phase 11's worker decode.
 
 ## The counterfactual that matters
 
