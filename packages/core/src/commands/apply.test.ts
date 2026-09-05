@@ -2,7 +2,7 @@ import { describe as group, expect, it } from 'vitest';
 
 import type { Command, Patch, PatchOp, ScenePeek } from './command.ts';
 import type { FracIdx, Shape, ShapeDraft, ShapeId, Style, Transform } from '../schema/shape.ts';
-import { COMMAND_TOUCHES, checkPatch, reduce } from './apply.ts';
+import { COMMAND_TOUCHES, checkPatch, invert, reduce, selectionBounds } from './apply.ts';
 
 /**
  * The write vocabulary, and the rules a patch has to obey to be one.
@@ -213,5 +213,147 @@ group('encodeShape', () => {
     // `-0` is accepted at read time because it is ordinary arithmetic, and normalised here
     // because the two encode to different bytes and the byte digest has to converge.
     expect(Object.is(rot, 0)).toBe(true);
+  });
+});
+
+group('invert', () => {
+  it('undoing a draw removes the shape, exactly', () => {
+    // The one exact inverse. A create's inverse is a parent drop, which beats every concurrent
+    // child write in both directions, so nothing a peer did in between can be lost.
+    const inverse = invert(scene, {
+      kind: 'create',
+      draft: { id: other, kind: 'rect', t, idx: 'a1' as FracIdx, style },
+    });
+
+    expect(inverse).toEqual({ kind: 'exact', cmd: { kind: 'delete', ids: [other] } });
+  });
+
+  it('undoing a move puts the shape back where it was, and says what that costs', () => {
+    const moved = { x: 500, y: 500, w: 10, h: 10, rot: 0 } as unknown as Transform;
+
+    const inverse = invert(scene, { kind: 'transform', entries: [{ id, t: moved }] });
+
+    // The inverse carries the geometry the shape had BEFORE the move — read from the scene now,
+    // because after the move it is gone. Lossy in multiplayer: a peer who moved it in between
+    // has their move overwritten by ours coming back.
+    expect(inverse).toEqual({
+      kind: 'lossy',
+      loses: 'stale-geometry-restored',
+      cmd: { kind: 'transform', entries: [{ id, t: existing.t }] },
+    });
+  });
+
+  it('undoing a recolour restores the previous style', () => {
+    const red = { ...style, fill: '#ff0000' } as Style;
+
+    const inverse = invert(scene, { kind: 'restyle', entries: [{ id, style: red }] });
+
+    expect(inverse.kind).toBe('lossy');
+    expect(inverse.kind === 'lossy' ? inverse.cmd : undefined).toEqual({
+      kind: 'restyle',
+      entries: [{ id, style: existing.style }],
+    });
+  });
+
+  it('undoing a restack restores the previous position in the stack', () => {
+    const inverse = invert(scene, { kind: 'reorder', entries: [{ id, idx: 'a9' as FracIdx }] });
+
+    expect(inverse.kind === 'lossy' ? inverse.cmd : undefined).toEqual({
+      kind: 'reorder',
+      entries: [{ id, idx: existing.idx }],
+    });
+  });
+
+  it('undoing a delete brings the shape back as it was', () => {
+    const inverse = invert(scene, { kind: 'delete', ids: [id] });
+
+    // Resurrection is a create from the shape as it stood. Lossy for a named reason: a peer's
+    // concurrent restyle of the deleted shape was annihilated by the parent drop and does not
+    // come back with it.
+    expect(inverse.kind).toBe('lossy');
+    expect(inverse.kind === 'lossy' ? inverse.loses : undefined).toBe('peer-restyle-lost-on-resurrect');
+    const cmd = inverse.kind === 'lossy' ? inverse.cmd : undefined;
+    expect(cmd?.kind).toBe('create');
+    expect(cmd?.kind === 'create' ? cmd.draft : undefined).toEqual({
+      id,
+      kind: 'rect',
+      t: existing.t,
+      idx: existing.idx,
+      style: existing.style,
+    });
+  });
+
+  it('has no inverse for a command naming a shape that is not there', () => {
+    // Nothing to restore. Reported as `none` rather than a guess, because an undo that
+    // re-creates a shape from thin air is worse than an undo that does nothing.
+    expect(invert(scene, { kind: 'transform', entries: [{ id: other, t }] })).toEqual({ kind: 'none' });
+    expect(invert(scene, { kind: 'delete', ids: [other] })).toEqual({ kind: 'none' });
+  });
+
+  it('inverts a group move entry by entry', () => {
+    // A three-shape drag is one command with three entries, so its inverse is one command
+    // with three entries — one undo step, as the gesture was one gesture.
+    const third = 's3' as ShapeId;
+    const twoShapes: ScenePeek = {
+      get: (wanted) => (wanted === id || wanted === third ? { ...existing, id: wanted } : undefined),
+      has: (wanted) => wanted === id || wanted === third,
+    };
+    const moved = { x: 1, y: 1, w: 10, h: 10, rot: 0 } as unknown as Transform;
+
+    const inverse = invert(twoShapes, {
+      kind: 'transform',
+      entries: [
+        { id, t: moved },
+        { id: third, t: moved },
+      ],
+    });
+
+    expect(inverse.kind === 'lossy' ? inverse.cmd : undefined).toEqual({
+      kind: 'transform',
+      entries: [
+        { id, t: existing.t },
+        { id: third, t: existing.t },
+      ],
+    });
+  });
+});
+
+group('selectionBounds', () => {
+  it('is the box around everything selected', () => {
+    const far = 's3' as ShapeId;
+    const twoShapes: ScenePeek = {
+      get: (wanted) =>
+        wanted === id
+          ? existing
+          : wanted === far
+            ? { ...existing, id: far, t: { x: 100, y: 100, w: 10, h: 10, rot: 0 } as unknown as Transform }
+            : undefined,
+      has: (wanted) => wanted === id || wanted === far,
+    };
+
+    // `existing` is at (5, 20) 10x10, the other at (100, 100) 10x10.
+    expect(selectionBounds(twoShapes, [id, far])).toEqual({ x: 5, y: 20, w: 105, h: 90 });
+  });
+
+  it('accounts for rotation, because the handles go around what is painted', () => {
+    const turned: ScenePeek = {
+      get: () => ({ ...existing, t: { x: 0, y: 0, w: 40, h: 10, rot: Math.PI / 2 } as unknown as Transform }),
+      has: () => true,
+    };
+
+    const bounds = selectionBounds(turned, [id]);
+
+    // A quarter-turned wide rect is a tall box, centred where the shape is centred.
+    expect(bounds?.w).toBeCloseTo(10, 6);
+    expect(bounds?.h).toBeCloseTo(40, 6);
+  });
+
+  it('is undefined for an empty selection or one that no longer exists', () => {
+    expect(selectionBounds(scene, [])).toBeUndefined();
+    expect(selectionBounds(scene, [other])).toBeUndefined();
+  });
+
+  it('ignores ids that have gone and boxes the rest', () => {
+    expect(selectionBounds(scene, [id, other])).toEqual({ x: 5, y: 20, w: 10, h: 10 });
   });
 });

@@ -1,7 +1,18 @@
-import type { CheckPatch, Command, CommandTouches, PatchOp, Reduce, ScenePeek } from './command.ts';
-import type { CommitStamp } from './command.ts';
+import type {
+  CheckPatch,
+  Command,
+  CommandTouches,
+  CommitStamp,
+  Invert,
+  NonEmpty,
+  PatchOp,
+  Reduce,
+  ScenePeek,
+  SelectionBounds,
+} from './command.ts';
 import type { Shape, ShapeDraft, ShapeId, ShapeKey } from '../schema/shape.ts';
 import { HOT_KEYS } from '../schema/keys.ts';
+import { transformBounds } from '../schema/bounds.ts';
 import { SCHEMA_VERSION } from '../schema/validate.ts';
 import { encodeShape, encodeStyleValue, encodeTransformValue } from '../schema/encode.ts';
 
@@ -207,4 +218,114 @@ export const checkPatch: CheckPatch = (kind, patch, touches) => {
   }
 
   return violations;
+};
+
+/**
+ * Map a non-empty list to a non-empty list, or to nothing if any element maps to nothing.
+ *
+ * The all-or-nothing is the point: an inverse that restores two of three shapes is an undo
+ * step that half-happens, which is worse than one that reports it cannot happen.
+ */
+const mapAll = <A, B>(items: NonEmpty<A>, f: (item: A) => B | undefined): NonEmpty<B> | undefined => {
+  const out: B[] = [];
+  for (const item of items) {
+    const mapped = f(item);
+    if (mapped === undefined) return undefined;
+    out.push(mapped);
+  }
+  const [first, ...rest] = out;
+  return first === undefined ? undefined : [first, ...rest];
+};
+
+/** A shape as a draft again: everything the store did not stamp. */
+const draftOf = (shape: Shape): ShapeDraft =>
+  shape.kind === 'pen'
+    ? { id: shape.id, kind: 'pen', t: shape.t, idx: shape.idx, style: shape.style, ink: shape.ink }
+    : { id: shape.id, kind: 'rect', t: shape.t, idx: shape.idx, style: shape.style };
+
+/**
+ * The inverse of a command, read from the scene BEFORE the command is applied.
+ *
+ * Only `create` inverts exactly — its inverse is a parent drop, which beats every concurrent
+ * child write in both clientID directions. Everything else is `lossy` and says how: restoring
+ * geometry a peer has since changed, or resurrecting a shape without the restyle a peer applied
+ * to it while it was being deleted. Single-player has no peers to lose anything to, which is
+ * why `MemoryStore`'s history uses these and the multiplayer store defers to `Y.UndoManager`.
+ *
+ * A multi-shape `delete` has no single-command inverse — its inverse is several creates — so
+ * it returns `none` and the history layer splits a deletion per id before asking. Stated here
+ * rather than worked around silently, because the alternative was widening `Inverse` to carry
+ * a list and pretending one undo step is one command when it is not.
+ */
+export const invert: Invert = (scene, cmd) => {
+  switch (cmd.kind) {
+    case 'create':
+      return { kind: 'exact', cmd: { kind: 'delete', ids: [cmd.draft.id] } };
+
+    case 'transform': {
+      const entries = mapAll(cmd.entries, (entry) => {
+        const shape = scene.get(entry.id);
+        return shape === undefined ? undefined : { id: entry.id, t: shape.t };
+      });
+      if (entries === undefined) return { kind: 'none' };
+      return { kind: 'lossy', loses: 'stale-geometry-restored', cmd: { kind: 'transform', entries } };
+    }
+
+    case 'restyle': {
+      const entries = mapAll(cmd.entries, (entry) => {
+        const shape = scene.get(entry.id);
+        return shape === undefined ? undefined : { id: entry.id, style: shape.style };
+      });
+      if (entries === undefined) return { kind: 'none' };
+      return { kind: 'lossy', loses: 'peer-field-write-annihilated', cmd: { kind: 'restyle', entries } };
+    }
+
+    case 'reorder': {
+      const entries = mapAll(cmd.entries, (entry) => {
+        const shape = scene.get(entry.id);
+        return shape === undefined ? undefined : { id: entry.id, idx: shape.idx };
+      });
+      if (entries === undefined) return { kind: 'none' };
+      return { kind: 'lossy', loses: 'peer-field-write-annihilated', cmd: { kind: 'reorder', entries } };
+    }
+
+    case 'delete': {
+      const [only, ...more] = cmd.ids;
+      if (more.length > 0) return { kind: 'none' };
+      const shape = scene.get(only);
+      if (shape === undefined) return { kind: 'none' };
+      return {
+        kind: 'lossy',
+        loses: 'peer-restyle-lost-on-resurrect',
+        cmd: { kind: 'create', draft: draftOf(shape) },
+      };
+    }
+  }
+};
+
+/**
+ * The box around a selection, rotation included, for handles and marquee feedback.
+ *
+ * Ids that are no longer in the scene are skipped rather than failing the whole box: a
+ * selection outliving one of its shapes is ordinary after an undo, and the handles should go
+ * around what is still there.
+ */
+export const selectionBounds: SelectionBounds = (scene, ids) => {
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+
+  for (const id of ids) {
+    const shape = scene.get(id);
+    if (shape === undefined) continue;
+    const box = transformBounds(shape.t);
+    minX = Math.min(minX, box.x);
+    minY = Math.min(minY, box.y);
+    maxX = Math.max(maxX, box.x + box.w);
+    maxY = Math.max(maxY, box.y + box.h);
+  }
+
+  if (!Number.isFinite(minX)) return undefined;
+  return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
 };

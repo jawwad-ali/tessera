@@ -134,7 +134,17 @@ export { encodeShape, encodeStyleValue, encodeTransformValue } from './schema/en
 export { HOT_KEYS, KEY_CLASS } from './schema/keys.ts';
 
 // The write vocabulary.
-export { COMMAND_TOUCHES, checkPatch, missingTarget, reduce, stampShape } from './commands/apply.ts';
+export {
+  COMMAND_TOUCHES,
+  checkPatch,
+  // `invert` is taken by the camera's matrix inversion at this index, so the command inverse
+  // is exported under the name the interaction layer actually reads it as.
+  invert as invertCommand,
+  missingTarget,
+  reduce,
+  selectionBounds,
+  stampShape,
+} from './commands/apply.ts';
 
 // The scene.
 export { compareDrawOrder, idxBetween } from './scene/order.ts';
