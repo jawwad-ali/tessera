@@ -17,12 +17,13 @@ without a server refereeing every conflict.
 
 ---
 
-## Status: pre-alpha — foundations, not yet a running app
+## Status: pre-alpha — a read-only renderer runs locally; nothing is deployed yet
 
-**There is no runnable whiteboard yet.** This section is deliberately explicit, because the
-alternative is a README that describes a product the repository does not contain.
+**There is no live URL and nothing can be drawn yet.** This section is deliberately explicit,
+because the alternative is a README that describes a product the repository does not contain.
 
-**What exists and is tested — 79 tests, `pnpm verify` green:**
+**What exists and is tested — 232 unit tests, 4 browser tests against a production build,
+`pnpm verify` green:**
 
 | Built | What it is |
 |---|---|
@@ -31,14 +32,18 @@ alternative is a README that describes a product the repository does not contain
 | `packages/core` — camera | Pure 2D affine camera, property-tested, and mutation-tested to confirm the properties fail on a broken implementation |
 | `packages/core` — spatial index | Uniform spatial hash for culling and hit testing, differential-tested against a brute-force scan |
 | `packages/core` — contracts | The shape schema, command vocabulary and store seam, as types only — zero runtime exports, so implementations must satisfy them |
+| `packages/core` — runtime | The untrusted-document resolver (total, never throws), the five-command reducer with its one-hot-key checker, jittered fractional indexing, and `MemoryStore` with gesture staging and no-op suppression — every piece mutation-tested |
+| `packages/harness` — convergence suite | Generated gestures over the real command vocabulary, 2,000 seeds, invariants after every gesture. [`harness/CAUGHT.md`](./harness/CAUGHT.md) lists three planted mutants **and one real bug it found in shipped code**, each with seeds-to-failure and shrink length |
+| `apps/web` — renderer | A read-only canvas renderer: culled draw plan, dirty-gated frame loop, drag-to-pan, zoom-about-pointer. A Playwright test on the production build proves a pixel lands inside a shape's projected box and follows a 200px drag exactly. Frame-time baseline: **p95 11.6ms at 5,000 shapes**, LOD off — see [docs/measurements.md](./docs/measurements.md) |
 | `packages/crdt` | The runtime single-Yjs-instance guard |
 
-**Not built yet:** the renderer, the input layer, the Yjs store binding, the relay, persistence,
-auth, and the convergence suite. `apps/web` and `apps/relay` are manifests only.
+**Not built yet:** drawing tools and selection, the Yjs store binding, the relay, persistence,
+and auth. `apps/relay` is a manifest only. The renderer is not deployed: Phase 3's deploy is
+blocked on granting Vercel's GitHub integration access to this repository.
 
-**[PHASES.md](./PHASES.md)** is the tracker: 12 phases, 37 exit criteria, a named
+**[PHASES.md](./PHASES.md)** is the tracker: 12 phases, 38 exit criteria, a named
 DEMO-COMPLETE gate after which every phase is optional, and the known defects in the current
-commit. A live URL arrives at Phase 3.
+commit. Phases 0–2 are closed; Phase 3 is 3/4 with the live URL outstanding.
 
 ---
 
@@ -110,7 +115,16 @@ pnpm install
 pnpm verify        # typecheck → lib purity → lint → architecture rules → tests
 ```
 
-`pnpm dev` exists but has nothing to serve yet — see Status above.
+```bash
+pnpm dev:web      # then open http://localhost:3000/b/demo?seed=1&n=5000
+```
+
+Drag to pan, ctrl+scroll or pinch to zoom. The board is seeded, so `seed` and `n` in the URL
+reproduce it exactly. Read-only: nothing is saved and nothing can be drawn yet.
+
+```bash
+pnpm --filter @tessera/web e2e   # builds for production, then the pixel test and the frame-time baseline
+```
 
 ```bash
 pnpm arch          # the dependency-graph invariants alone

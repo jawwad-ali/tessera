@@ -68,7 +68,7 @@ Estimates are evening-hours. Cumulative assumes ~10–12h/week.
 | 0 | Foundations made honest | `done` | 3–5h | ~5h | A public repo whose README describes only what exists, with a genuinely green CI badge | [repo](https://github.com/jawwad-ali/tessera) - [docs/measurements.md](./docs/measurements.md) | no |
 | 1 | Core runtime | `done` 6/6 | 10–14h | ~6h | *(unchanged — invisible phase, justified: nothing can be drawn or synced before the reducer exists)* | [core/src](./packages/core/src) — 173 tests | no |
 | 2 | Property suite, mutation-proved | `done` 4/4 | 8–12h | ~4h | `harness/CAUGHT.md`: three planted bugs **and one real one**, seeds-to-failure, shrink lengths | [harness/CAUGHT.md](./harness/CAUGHT.md) — 197 tests | no |
-| 3 | Renderer, read-only — **first deploy** | `in-progress` 0/4 | 12–18h | — | **A live URL.** Pan and zoom a seeded 5,000-shape board | — | no |
+| 3 | Renderer, read-only — **first deploy** | `blocked` 3/4 | 12–18h | ~4h | **A live URL.** Pan and zoom a seeded 5,000-shape board | — | no |
 | 4 | Input and tools | `not-started` | 12–18h | — | The same URL, now drawable: rect, pen, select, move, delete, undo | — | no |
 | 5 | YjsStore behind the seam | `not-started` | 10–16h | — | `?store=memory\|yjs` on the live URL; two tabs sync with the server switched off | — | no |
 | 6 | Relay | `not-started` | 12–18h | — | *(unchanged — invisible phase, justified: the only run of one, immediately before the gate)* | — | no |
@@ -414,8 +414,8 @@ failures — against 2 failures in 12 before the fix.
 
 | Field | Value |
 |---|---|
-| **Status** | `in-progress` 0/4 |
-| Estimate / Actual / Unplanned | 12–18h / — / — |
+| **Status** | `blocked` 3/4 — blocker named in `3.C3` |
+| Estimate / Actual / Unplanned | 12–18h / ~4h / 10 |
 | Makes true | **A URL exists.** Pixels appear, the camera and the store provably agree, and the pre-optimisation frame-time baseline is captured *before* any optimisation exists. |
 | Depends on | 1 (technical) · 2 (policy — could be reordered, at the cost of building on an untested reducer) |
 | A stranger sees | **A live link.** Pan and zoom a seeded 5,000-shape board. |
@@ -429,21 +429,21 @@ production-built, pannable board with no server, no persistence and no auth — 
 target. Every later phase then *upgrades a URL that already exists* instead of promising one.
 
 **Tasks**
-- [ ] Canvas host mounted `dynamic(ssr: false)`; dpr folded into the camera matrix; `ResizeObserver` with `devicePixelContentBoxSize`.
-- [ ] Two layers (static + overlay); rAF gated on a dirty flag, never unconditional.
+- [x] Canvas host mounted `dynamic(ssr: false)`; dpr folded into the camera matrix; `ResizeObserver` with `devicePixelContentBoxSize` (read behind a nullable function boundary — Safari does not ship it, whatever the DOM lib says).
+- [x] Static layer; rAF gated on a dirty flag, never unconditional. *Overlay deferred to its first drawer (Phase 4) — see the threshold block above for the memory argument.*
 - [x] *Projection and culling first:* `scene/visible.ts` — the ordered, culled draw plan with device-pixel bounds, and `MemoryStore.query` backed by an incremental spatial index. The pure half of `3.C1`, so a misplaced pixel is diagnosed by a number rather than a screenshot.
-- [ ] `Path2D` cache per shape; wheel/camera with ctrl+wheel as pinch, zooming about the pointer.
-- [ ] Seeded route `/b/demo?seed=&n=` reading a fixture — no store writes.
-- [ ] Deploy to Vercel; link in the README with a one-line caption saying it is a read-only renderer demo.
+- [x] Wheel/camera with ctrl+wheel as pinch, zooming about the pointer; drag-to-pan with the board point pinned under the pointer. *`Path2D` cache not built:* the baseline met its requirement without it (p95 11.6ms vs 16.7ms), so a cache now would be an optimisation with no measured need — and the counterfactual must be captured without one. It belongs to Phase 11 alongside LOD.
+- [x] Seeded route `/b/demo?seed=&n=` reading a fixture — no store writes. `n` is clamped to 10,000 because it is untrusted input on a public URL.
+- [ ] Deploy to Vercel; link in the README with a one-line caption saying it is a read-only renderer demo. **Blocked** — `3.C3`.
 
 **Exit criteria**
 
 | ID | Criterion | Kind | Verifier | ✓ |
 |---|---|---|---|---|
-| 3.C1 | **A pixel is proven painted in the right place.** A Playwright test on a *production* build asserts by canvas readback that (i) a non-background pixel exists inside a known fixture shape's projected AABB and (ii) after a programmatic 200px drag, non-background pixels appear in the new AABB and **not** the old | command | `pnpm --filter @tessera/web e2e -g projection` | ☐ |
-| 3.C2 | Measured against `next build && next start`, **never `next dev`** — StrictMode double-invokes effects and yields two rAF loops, invalidating any number | command | the e2e script's own build step | ☐ |
-| 3.C3 | The live URL returns 200 and renders the seeded board | human | open the link *(the one human row in this phase)* | ☐ |
-| 3.C4 | **Pre-registered counterfactual, LOD OFF:** p50/p95/p99 frame time and long-frame count at zoom-to-fit, n≥30, with dpr, viewport, hardware, OS, browser and refresh rate stated, and the breaking point as *the n at which p95 crosses 16.7ms*. Committed, with its sha recorded here — this is what Phase 11 is measured against | number | row in `docs/measurements.md` | ☐ |
+| 3.C1 | **A pixel is proven painted in the right place.** A Playwright test on a *production* build asserts by canvas readback that (i) a non-background pixel exists inside a known fixture shape's projected AABB and (ii) after a programmatic 200px drag, non-background pixels appear in the new AABB and **not** the old | command | `pnpm --filter @tessera/web e2e -g projection` | ☐☑ |
+| 3.C2 | Measured against `next build && next start`, **never `next dev`** — StrictMode double-invokes effects and yields two rAF loops, invalidating any number | command | the e2e script's own build step | ☐☑ |
+| 3.C3 | The live URL returns 200 and renders the seeded board. **BLOCKED 2026-09-05, and the blocker is named:** `create_git_project` on the LinkedUnion Vercel team returned `repo_no_access` — *"You need admin or write access to the repository 'tessera' to link it"*. Vercel's GitHub App is not installed on `jawwad-ali/tessera` for that team. **Unblock:** install the Vercel GitHub App for this repository (or link from the Vercel scope that owns it), then re-run the link with `rootDirectory: apps/web`; every push to `main` deploys from then on. A manual file upload was deliberately *not* used: it would produce a URL today that drifts from git tomorrow, and the point of deploying here is that every later phase upgrades a URL that redeploys itself. | human | open the link *(the one human row in this phase)* | ☐ |
+| 3.C4 | **Pre-registered counterfactual, LOD OFF:** p50/p95/p99 frame time and long-frame count at zoom-to-fit, n≥30, with dpr, viewport, hardware, OS, browser and refresh rate stated, and the breaking point as *the n at which p95 crosses 16.7ms*. Committed, with its sha recorded here — this is what Phase 11 is measured against | number | row in `docs/measurements.md` | ☐☑ — [docs/measurements.md](./docs/measurements.md), baseline sha `ed29d17` |
 
 **Pre-registered thresholds, 2026-09-03 — written before `apps/web/src` existed and before
 anything was measured.**
@@ -483,6 +483,27 @@ it is a decision rather than a rediscovery.
 
 **Slip risk:** dpr, half-pixel snapping and `touch-action: none` all look fine until they
 don't, and the deploy itself is reliably two evenings the first time.
+
+**What actually happened (appended 2026-09-05, prediction kept above).** The slip risk was right
+about the deploy and wrong about why: it is not two evenings of configuration, it is one
+permission on someone else's account, and no amount of engineering moves it. dpr and
+`touch-action` gave no trouble at all.
+
+**The requirement was met and the prediction was wrong.** Registered before any renderer
+existed: p95 ≤ 16.7ms required, ~30ms predicted. Measured: **p95 11.6ms at 5,000 shapes**, 0 long
+frames in 60; the breaking point is ≈10,000 shapes (p95 16.5ms, at the fixture cap). The model
+assumed ~3µs per Canvas 2D fill-plus-stroke; the real figure is ~1.2µs. The requirement did not
+move, the model did, and both numbers stay in `docs/measurements.md` so the size of the miss is
+on record. The consequence is a scope decision: the `Path2D` cache was *not* built, because an
+optimisation with no measured need is exactly what a pre-registered baseline exists to prevent.
+
+Unplanned, in order found: `SpatialHash` made generic over its id type; three culling mutants
+survived the first test set, one of which — **a dragged shape kept its old index entry and
+vanished** — would have shipped; the drag and the wheel both had their signs backwards, which is
+smooth, responsive and wrong without a test; `Painter2D` had to widen to the real context's
+style union; Safari's missing `devicePixelContentBoxSize`; App Router files flagged as orphans;
+the pixel test raced its own paint counter; `next-env.d.ts` was swept into a commit by a
+background build and failed CI; `repo_no_access` from Vercel; and the prediction miss itself.
 
 ---
 
@@ -793,7 +814,7 @@ real estimate error and the only input that makes the next estimate honest.
 | 0 | 3–5h | ~5h | 3 | ~5h | Unplanned: `bench/` had to become a workspace member; `func-style` is not auto-fixable so 42 declarations needed a transformer; the crdt purity boundary rejected `Buffer` in a test. |
 | 1 | 10–14h | ~6h | 8 | ~11h | Wall-clock from the Phase 0 close commit to the Phase 1 close commit (14:24→20:35), not a timer — it includes the analysis detours. Unplanned: `transformBounds` overflow forced `COORD_LIMIT` into existence; `CheckPatch`'s signature could not use its own argument; `1.C3`'s undo clause was unobservable and needed `4.C5`; two mutation escapes (forged attribution, notify-per-write); one vacuous branch (the `put` footprint rule); `legacy-wins` turned out type-unrepresentable; `SCHEMA_VERSION` was declared twice. |
 | 2 | 8–12h | ~4h | 10 | ~15h | Wall-clock by commit timestamp. Unplanned: the restyle/reorder/delete staging carried forward from Phase 1 was needed here; the generator missed its own wasted-action ceiling; `found-1`; D-5's flaky camera test and the 33 unseeded `fc.assert` calls behind it; `idxBetween(k,k)` and inverted bounds; the harness reporting a crash instead of an invariant; `patch-shape` did not exist yet; `core/src/index.ts` exported nothing from Phase 1; `checkCaught` mis-parsed a two-table file; the mutation script's deletion edits were not reversible. |
-| 3 | 12–18h | — | — | — | — |
+| 3 | 12–18h | ~4h so far | 10 | ~19h | Two sessions (09-03 evening, 09-05). Three of four criteria green with verifiers run; `3.C3` needs a Vercel GitHub App permission only the repository owner can grant. See the phase's what-actually-happened block for the ten unplanned items. |
 | 4 | 12–18h | — | — | — | — |
 | 5 | 10–16h | — | — | — | — |
 | 6 | 12–18h | — | — | — | — |
